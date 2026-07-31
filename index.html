@@ -118,6 +118,7 @@
     box-shadow:4px 4px 0 var(--ink); padding:6px 11px 4px; font-size:16px; transform:skewX(-6deg);
   }
   .chip.dim{background:var(--paper);} .chip.blue{background:var(--ice);}
+  .chip.warnchip{background:var(--alarm); color:var(--paper);}
   #hudRight{display:flex; gap:8px; align-items:flex-start; pointer-events:auto;}
   #pauseBtn{padding:6px 12px 4px; font-size:17px; box-shadow:4px 4px 0 var(--ink); border-width:3px;}
 
@@ -245,6 +246,7 @@
       <div class="chip blue" id="hudStars">&#9733; 0/3</div>
     </div>
     <div id="hudRight">
+      <div class="chip warnchip" id="hudLives" style="display:none;">CAPES 5</div>
       <div class="chip dim" id="hudWipes">WIPEOUTS 0</div>
       <button class="btn" id="pauseBtn">II</button>
     </div>
@@ -325,6 +327,8 @@
   <div class="screen" id="scLevel">
     <h1 class="selhead" id="lvlHead">Pick your rooftop</h1>
     <p class="selsub" id="selSubLvl">&nbsp;</p>
+    <div class="modebar" id="diffBar"></div>
+    <p class="modenote" id="diffNote"></p>
     <div class="modebar" id="modeBar"></div>
     <p class="modenote" id="modeNote"></p>
     <div class="roster" id="levelList" style="grid-template-columns:repeat(auto-fit,minmax(232px,1fr));"></div>
@@ -351,6 +355,9 @@
         <div>Inside a purple <b>NO POWERS</b> field, nobody's power works. Plain jumping only.</div>
         <div>Pause any time to change hero or jump to another page.</div>
         <div>Hold <b>dance</b> while standing still. Every hero dances differently.</div>
+        <div><b>Easy</b> slows the hazards and gives you a shield that returns.
+        <b>Hard</b> speeds them up and allows five wipeouts a page. Running and jumping
+        never change, so every page stays finishable either way.</div>
       </div>
       <div class="row"><button class="btn" id="btnHowBack">Got it</button></div>
     </div>
@@ -365,6 +372,7 @@
         <button class="btn alt" id="btnRestart">Restart page</button>
       </div>
       <div class="row" style="margin-top:12px;">
+        <button class="btn alt" id="btnPauseDiff" style="font-size:17px;">Difficulty</button>
         <button class="btn alt" id="btnPauseHero" style="font-size:17px;">Change hero</button>
         <button class="btn alt" id="btnPauseLevels" style="font-size:17px;">Contents</button>
       </div>
@@ -408,7 +416,7 @@
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
 
-const VERSION = 'v7.0';
+const VERSION = 'v7.1';
 const FLIP_DUR = 0.78;
 const MODES = [
   {id:'race',  name:'Race',      note:'First cape to the beacon takes the page.'},
@@ -416,6 +424,26 @@ const MODES = [
   {id:'tag',   name:'Tag',       note:'One of you is IT. Touch to pass it on. Whoever is IT when the clock runs out loses.'}
 ];
 const STAR_TARGET = 5, STAR_RESPAWN = 4.0, TAG_TIME = 60, TAG_CD = 1.1;
+/* Difficulty deliberately leaves running and jumping alone. Every page is proven
+   finishable at the stock numbers using nothing but plain movement, and changing
+   reach would throw that proof away. What changes instead is how fast the hazards
+   work, how much slack you get on a jump, and what a wipeout costs. */
+const DIFFS = [
+  {id:'easy', name:'Easy',
+   hazard:0.70, fire:1.40, crumble:1.9, coyote:0.15, buffer:0.18,
+   cd:0.60, fuel:1.40, knock:0.65, stun:0.0, lives:0, aegis:6.0,
+   note:'Hazards move slower, jumps forgive more, and a shield keeps coming back.'},
+  {id:'normal', name:'Normal',
+   hazard:1.00, fire:1.00, crumble:1.0, coyote:0.09, buffer:0.12,
+   cd:1.00, fuel:1.00, knock:1.00, stun:0.30, lives:0, aegis:0,
+   note:'The game as it was built. A wipeout costs you nothing but time.'},
+  {id:'hard', name:'Hard',
+   hazard:1.32, fire:0.68, crumble:0.55, coyote:0.05, buffer:0.07,
+   cd:1.40, fuel:0.85, knock:1.15, stun:0.38, lives:5, aegis:0,
+   note:'Everything moves faster, far less slack on a jump, and five wipeouts a page.'}
+];
+function D(){ return game.diff || DIFFS[1]; }   /* normal until chosen */
+
 const DANCE_WORDS = ['BOOGIE!','GROOVE!','SHAKE IT!','DISCO!','WOO!','FUNKY!','TWIST!','JIVE!','WIGGLE!'];
 const BANGS = ['BANG!','BASH!','POW!','WHAM!','THWACK!','SOCK!','KABOOM!','BOP!'];
 const LEVEL_BLURB = [
@@ -888,7 +916,8 @@ function buildLevel(i){
                            oy:p[1], gone:false, fallT:-1, vy:0, respawn:0})),
     movers:L.movers.map(m=>({ax:m[0], ay:m[1], w:m[2], h:m[3], bx:m[4], by:m[5], spd:m[6],
                              x:m[0], y:m[1], px:m[0], py:m[1], prog:0, dir:1, t:'solid', mover:true})),
-    saws:L.saws.map(s=>({ax:s[0], ay:s[1], r:s[2], bx:s[3], by:s[4], spd:s[5],
+    saws:L.saws.map(s=>({ax:s[0], ay:s[1], r:s[2], bx:s[3], by:s[4],
+                         spd:s[5]*D().hazard,
                          x:s[0], y:s[1], prog:0, dir:1, rot:0})),
     spikes:L.spikes.map(s=>({x:s[0], y:s[1], w:s[2]})),
     crates:L.crates.map(c=>({x:c[0], y:c[1], w:48, h:48, t:'solid', gone:false, crate:true})),
@@ -899,10 +928,12 @@ function buildLevel(i){
     plates:(L.plates||[]).map(q=>({x:q[0], y:q[1], w:q[2], id:q[3], down:false, press:0})),
     switches:(L.switches||[]).map(q=>({x:q[0], y:q[1], id:q[2], secs:q[3], timer:0})),
     stampers:(L.stampers||[]).map(q=>({x:q[0], ay:q[1], w:q[2], h:q[3],
-                                       travel:q[4], period:q[5], phase:q[6]||0,
-                                       y:q[1], py:q[1], dy:0, down:0})),
-    turrets:(L.turrets||[]).map(q=>({x:q[0], y:q[1], dir:q[2], period:q[3],
-                                     t:(q[4]||0)*q[3], recoil:0})),
+                                       travel:q[4], period:q[5]/D().hazard,
+                                       phase:q[6]||0, y:q[1], py:q[1], dy:0, down:0})),
+    turrets:(L.turrets||[]).map(q=>{
+      const per = q[3]*D().fire;
+      return {x:q[0], y:q[1], dir:q[2], period:per, t:(q[4]||0)*per, recoil:0};
+    }),
     damps:(L.damps||[]).map(d=>({x:d[0], y:d[1], w:d[2], h:d[3]})),
     coop:!!L.coop,
     goal:{x:L.goal[0], y:L.goal[1], w:46, h:64}
@@ -956,6 +987,7 @@ const game = {
   picking:0, picks:[null,null], nPlayers:1, kitting:0,
   kits:[Object.assign({}, DEFAULT_KIT), Object.assign({}, DEFAULT_KIT)],
   mode:'race', activeMode:'race', tagT:0,
+  diff:null, lives:0,
   time:0, wipes:0, starsGot:0, bests:{},
   fx:[], pops:[], gloves:[], winner:null, finished:0,
   cam:{x:0,y:0,z:1}, dedicate:'', flip:0, caption:null, capT:0
@@ -971,7 +1003,7 @@ function makePlayer(heroKey, idx){
     cp:{x:0,y:0}, cpRef:null, belt:0, onHero:null, rideStamp:null, hurt:0, stun:0, it:false, tagCd:0, dash:0, dashed:false, hopCd:0, turbo:false, turboPrev:false,
     turboFuel:1.5, pound:false, glideFuel:GLIDE_FUEL, wasDamped:false, jumpCut:false,
     pounced:false, charm:false, charmCd:0, wool:false, flaps:0, climbCd:0,
-    pushCd:0, pushFx:0, dancing:0, danceT:0, danceWord:-9, cape:[]
+    pushCd:0, pushFx:0, aegis:false, aegisCd:0, dancing:0, danceT:0, danceWord:-9, cape:[]
   };
 }
 
@@ -1000,6 +1032,11 @@ $('btnResume').onclick = resume;
 $('btnRestart').onclick = ()=>startLevel(game.li);
 $('btnQuit').onclick = toTitle;
 $('btnPauseHero').onclick = changeHero;
+$('btnPauseDiff').onclick = ()=>{
+  const i = DIFFS.indexOf(game.diff);
+  game.diff = DIFFS[(i+1) % DIFFS.length];
+  startLevel(game.li);                    /* rebuild the page at the new setting */
+};
 $('btnPauseLevels').onclick = ()=>{ clearInputs(); openLevelSelect(); };
 $('btnEndHero').onclick = changeHero;
 $('btnEndLevels').onclick = ()=>{ clearInputs(); openLevelSelect(); };
@@ -1139,6 +1176,19 @@ $('btnKitDone').onclick = ()=>{
   commitHeroes();
   openLevelSelect();
 };
+function buildDiffBar(){
+  const bar = $('diffBar');
+  bar.innerHTML = '';
+  for(const d of DIFFS){
+    const b = document.createElement('div');
+    b.className = 'modebtn' + (game.diff.id===d.id ? ' on' : '');
+    b.textContent = d.name;
+    b.onclick = ()=>{ game.diff = d; buildDiffBar(); };
+    bar.appendChild(b);
+  }
+  $('diffNote').textContent = game.diff.note;
+}
+
 function buildModeBar(){
   const bar = $('modeBar'), note = $('modeNote');
   bar.innerHTML = '';
@@ -1155,6 +1205,7 @@ function buildModeBar(){
 }
 
 function openLevelSelect(){
+  buildDiffBar();
   buildModeBar();
   buildLevelCards();
   game.state='level'; show('level');
@@ -1196,6 +1247,7 @@ function startLevel(i){
   game.time = 0; game.wipes = 0; game.starsGot = 0;
   game.activeMode = (game.nPlayers===2 && !LEVELS[i].coop) ? game.mode : 'race';
   game.tagT = TAG_TIME;
+  game.lives = D().lives; game.outT = 0;
   game.fx = []; game.pops = []; game.gloves = []; game.winner = null; game.finished = 0;
   const L = game.lvl;
   game.players.forEach((p,n)=>{
@@ -1206,10 +1258,11 @@ function startLevel(i){
     p.low=false; p.h=PH; p.rideMover=null; p.grounded=false; p.groundType='solid';
     p.belt=0; p.onHero=null; p.rideStamp=null; p.hurt=0; p.stun=0;
     p.it = (game.activeMode==='tag' && n===0); p.tagCd = 1.4;
-    p.dash=0; p.dashed=false; p.hopCd=0; p.turbo=false; p.turboFuel=1.5;
-    p.pound=false; p.glideFuel=GLIDE_FUEL; p.wasDamped=false; p.jumpCut=false;
+    p.dash=0; p.dashed=false; p.hopCd=0; p.turbo=false; p.turboFuel=1.5*D().fuel;
+    p.pound=false; p.glideFuel=GLIDE_FUEL*D().fuel; p.wasDamped=false; p.jumpCut=false;
     p.pounced=false; p.charm=false; p.charmCd=0; p.wool=false; p.flaps=0;
     p.climbCd=0; p.pushCd=0; p.pushFx=0; p.dancing=0; p.danceT=0; p.danceWord=-9;
+    p.aegis = D().aegis>0; p.aegisCd = D().aegis;
     p.cp = {x:p.x, y:p.y}; p.cpRef = null;
     p.cape = []; for(let k=0;k<7;k++) p.cape.push({x:p.x, y:p.y});
   });
@@ -1225,7 +1278,7 @@ function pause(){
   game.state='pause'; show('pause'); clearInputs();
   const who = game.players.map((p,i)=>
     (game.nPlayers===2 ? 'P'+(i+1)+' ' : '') + p.H.alias + ' — ' + p.H.power).join('   •   ');
-  $('pauseWho').textContent = who;
+  $('pauseWho').textContent = game.diff.name.toUpperCase() + '   •   ' + who;
 }
 function resume(){ if(game.state!=='pause') return; game.state='play'; show(null); }
 function clearInputs(){
@@ -1288,6 +1341,13 @@ function boxFree(x,y,w,h){
 /* ---------------------------------------------------------- update */
 function update(dt){
   const L = game.lvl;
+
+  /* out of capes on Hard: let the shout land, then start the page again */
+  if(game.outT > 0){
+    game.outT -= dt;
+    if(game.outT <= 0){ startLevel(game.li); return; }
+  }
+
   game.time += dt;
 
   for(const m of L.movers){
@@ -1458,13 +1518,17 @@ function updatePlayer(p, dt){
   if(p.dash>0) p.dash -= dt;
   if(p.hopCd>0) p.hopCd -= dt;
   if(p.charmCd>0) p.charmCd -= dt;
+  if(D().aegis > 0){
+    if(p.aegis) { /* held */ }
+    else { p.aegisCd -= dt; if(p.aegisCd <= 0){ p.aegis = true; puff(p,4); } }
+  } else { p.aegis = false; }
   if(p.pushCd>0) p.pushCd -= dt;
   if(p.climbCd>0) p.climbCd -= dt;
   if(p.pushFx>0) p.pushFx -= dt;
   if(p.grounded){
-    p.dashed = false; p.pound = false; p.glideFuel = GLIDE_FUEL;
+    p.dashed = false; p.pound = false; p.glideFuel = GLIDE_FUEL*D().fuel;
     p.pounced = false; p.flaps = 0;
-    if(!st.power) p.turboFuel = Math.min(1.5, p.turboFuel + dt*0.7);
+    if(!st.power) p.turboFuel = Math.min(1.5*D().fuel, p.turboFuel + dt*0.7);
   }
   p.turbo = false;
 
@@ -1480,7 +1544,7 @@ function updatePlayer(p, dt){
   if(damped){ /* nothing fires in here */ }
   else if(H==='panda'){
     if(st.powerP && p.grounded && p.rollCd<=0 && p.roll<=0){
-      p.roll=0.42; p.rollCd=0.62; p.vx = p.face*ROLL_V; pop(p,'ROLL!'); puff(p,8);
+      p.roll=0.42; p.rollCd=0.62*D().cd; p.vx = p.face*ROLL_V; pop(p,'ROLL!'); puff(p,8);
     }
   } else if(H==='penguin'){
     if(st.power && p.grounded){
@@ -1500,7 +1564,7 @@ function updatePlayer(p, dt){
     }
   } else if(H==='rabbit'){
     if(st.powerP && p.grounded && p.hopCd<=0){
-      p.vy = SKYHOP_V; p.grounded=false; p.hopCd = 1.7; p.jumpCut = false; p.squash = 1.28;
+      p.vy = SKYHOP_V; p.grounded=false; p.hopCd = 1.7*D().cd; p.jumpCut = false; p.squash = 1.28;
       pop(p,'SKY HOP!'); puff(p,9);
     }
   } else if(H==='squirrel'){
@@ -1524,7 +1588,7 @@ function updatePlayer(p, dt){
     }
   } else if(H==='cat'){
     if(st.powerP && !p.charm && p.charmCd<=0){
-      p.charm = true; p.charmCd = 9.0; pop(p,'NINE LIVES!'); puff(p,6);
+      p.charm = true; p.charmCd = 9.0*D().cd; pop(p,'NINE LIVES!'); puff(p,6);
     }
   } else if(H==='sheep'){
     if(st.powerP && !p.grounded && !p.wool){
@@ -1546,13 +1610,13 @@ function updatePlayer(p, dt){
         if(!best || so.y > best.y) best = so;
       }
       if(best){
-        p.y = best.y - p.h; p.vy = 0; p.climbCd = 0.9;
+        p.y = best.y - p.h; p.vy = 0; p.climbCd = 0.9*D().cd;
         pop(p,'STRETCH!'); puff(p,7);
       } else { pop(p,'NOTHING TO GRAB'); }
     }
   } else if(H==='whale'){
     if(st.powerP && p.pushCd<=0){
-      p.pushCd = 2.2; p.pushFx = 0.35;
+      p.pushCd = 2.2*D().cd; p.pushFx = 0.35;
       pop(p,'TIDAL PUSH!');
       const cx = p.x + p.w/2, cy = p.y + p.h/2;
       for(let i=game.gloves.length-1;i>=0;i--){
@@ -1575,7 +1639,7 @@ function updatePlayer(p, dt){
     }
   } else if(H==='tortoise'){
     if(st.powerP && p.shellCd<=0){
-      p.shell=1.25; p.shellCd=3.0; pop(p,'IRON SHELL!'); puff(p,9);
+      p.shell=1.25; p.shellCd=3.0*D().cd; pop(p,'IRON SHELL!'); puff(p,9);
     }
   }
   st.powerP = false;              /* consume the press edge */
@@ -1634,7 +1698,7 @@ function updatePlayer(p, dt){
   if(p.glide) p.vx += p.face*60*dt;
 
   /* ---- jump ---- */
-  if(st.jumpP){ p.buf = p.stun>0 ? 0 : JUMP_BUF; st.jumpP = false; }
+  if(st.jumpP){ p.buf = p.stun>0 ? 0 : D().buffer; st.jumpP = false; }
   if(p.buf>0) p.buf -= dt;
   if(p.coyote>0) p.coyote -= dt;
 
@@ -1718,7 +1782,7 @@ function updatePlayer(p, dt){
       if(s.mover) p.rideMover = s;
       if(s.t === 'convR') p.belt = 130;
       if(s.t === 'convL') p.belt = -130;
-      if(s.t==='crumble' && s.fallT<0) s.fallT = 0.45;
+      if(s.t==='crumble' && s.fallT<0) s.fallT = 0.45*D().crumble;
       if(s.t==='bounce'){ p.vy = BOUNCE_V; p.grounded=false; p.jumpCut = false;
                           p.squash=1.3; puff(p,8); pop(p,'BOING!'); }
     } else if(p.vy < 0){
@@ -1736,7 +1800,7 @@ function updatePlayer(p, dt){
     }
   }
   if(p.grounded){
-    p.coyote = COYOTE; p.twin = false;
+    p.coyote = D().coyote; p.twin = false;
     if(!p.wasGrounded){
       p.squash = 0.82; puff(p, p.pound ? 12 : 3);
       if(p.pound){ game.pops.push({x:p.x+p.w/2, y:p.y-6, txt:'WHUMP!', life:0.7, col:'#5B7CE8'}); }
@@ -1748,7 +1812,7 @@ function updatePlayer(p, dt){
       game.pops.push({x:p.x+p.w/2, y:p.y-6, txt:'SPROING!', life:0.7, col:'#7ED957'});
     }
   } else if(p.wasGrounded){
-    p.coyote = COYOTE;
+    p.coyote = D().coyote;
   }
   p.squash += (1-p.squash)*Math.min(1, dt*11);
 
@@ -1796,7 +1860,8 @@ function updatePlayer(p, dt){
     for(let i=game.gloves.length-1;i>=0;i--){
       const gl = game.gloves[i];
       if(!overlap(p, {x:gl.x-12, y:gl.y-12, w:24, h:24})) continue;
-      p.vx = gl.dir*360; p.vy = -235; p.hurt = 0.85; p.stun = 0.3; p.jumpCut = false;
+      p.vx = gl.dir*360*D().knock; p.vy = -235*D().knock;
+      p.hurt = 0.85; p.stun = D().stun; p.jumpCut = false;
       p.grounded = false; p.squash = 1.2;
       game.pops.push({x:p.x+p.w/2, y:p.y-10, txt:BANGS[(Math.random()*BANGS.length)|0],
                       life:0.85, col:'#FFD23F'});
@@ -1848,6 +1913,14 @@ function updatePlayer(p, dt){
 }
 
 function kill(p, fell){
+  if(p.aegis && !p.charm){
+    p.aegis = false; p.aegisCd = D().aegis; p.invul = 1.2;
+    for(let i=0;i<12;i++) spark(p.x+p.w/2, p.y+p.h/2, '#7FE3F0');
+    if(fell){ p.x = p.cp.x; p.y = p.cp.y; p.vx = 0; p.vy = 0; }
+    else { p.vy = -250; p.vx = -p.face*150; p.jumpCut = false; }
+    game.pops.push({x:p.x+p.w/2, y:p.y-10, txt:'SAVED!', life:0.9, col:'#7FE3F0'});
+    return;
+  }
   if(p.charm){
     p.charm = false; p.invul = 1.2;
     for(let i=0;i<14;i++) spark(p.x+p.w/2, p.y+p.h/2, '#B388FF');
@@ -1861,6 +1934,13 @@ function kill(p, fell){
     return;
   }
   game.wipes++;
+  if(D().lives > 0){
+    game.lives--;
+    if(game.lives <= 0){
+      game.pops.push({x:p.x+p.w/2, y:p.y-14, txt:'OUT OF CAPES!', life:1.2, col:'#E63946'});
+      game.outT = 1.1;
+    }
+  }
   for(let i=0;i<16;i++) spark(p.x+p.w/2, p.y+p.h/2, i%2 ? '#E63946' : '#FFD23F');
   game.pops.push({x:p.x+p.w/2, y:p.y-6, txt:'OOF!', life:0.8, col:'#E63946'});
   p.x = p.cp.x; p.y = p.cp.y; p.vx=0; p.vy=0;
@@ -1960,6 +2040,9 @@ function updateHUD(){
     $('hudStars').textContent = '\u2605 '+game.starsGot+'/'+game.lvl.stars.length;
   }
   $('hudWipes').textContent = 'WIPEOUTS '+game.wipes;
+  const lv = $('hudLives');
+  if(D().lives > 0){ lv.style.display = ''; lv.textContent = 'CAPES '+Math.max(0,game.lives); }
+  else lv.style.display = 'none';
 }
 
 /* ---------------------------------------------------------- scenery */
@@ -3073,6 +3156,7 @@ function loop(now){
   if(el) el.textContent = 'Cape Squad ' + VERSION;
 });
 
+game.diff = DIFFS[1];
 buildTitleStrip();
 resize();
 show('title');
