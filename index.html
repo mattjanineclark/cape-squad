@@ -57,6 +57,16 @@
     font-family:var(--display); text-transform:uppercase; letter-spacing:.2em;
     font-size:13px; opacity:.85; margin:14px 0 0; text-align:center;
   }
+  #heroStrip{
+    display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
+    margin:16px 0 0; width:min(680px,96vw);
+  }
+  .hpanel{
+    width:clamp(66px,15vw,104px); height:auto; display:block;
+    border:4px solid var(--ink); box-shadow:5px 5px 0 var(--ink);
+  }
+  .hpanel:nth-child(even){transform:rotate(1.4deg);}
+  .hpanel:nth-child(odd){transform:rotate(-1.2deg);}
   .dedicate{margin:20px 0 0; display:flex; flex-direction:column; align-items:center; gap:7px;}
   .dedicate label{font-family:var(--display); text-transform:uppercase; letter-spacing:.16em; font-size:12px; opacity:.8;}
   .dedicate input{
@@ -247,6 +257,7 @@
       <div class="tk" data-p="0" data-k="right">&#9654;</div>
     </div>
     <div class="pad solo side-r" id="padSoloAct">
+      <div class="tk dance" data-p="0" data-k="dance">DANCE</div>
       <div class="tk big pow" data-p="0" data-k="power">POWER</div>
       <div class="tk big jump" data-p="0" data-k="jump">JUMP</div>
     </div>
@@ -272,7 +283,8 @@
 
   <div class="screen on" id="scTitle">
     <div class="logo"><b class="l1">Cape</b><b class="l2">Squad</b></div>
-    <p class="tagline">Six animals. Six powers. One rooftop.</p>
+    <p class="tagline" id="tagline">Sixteen heroes. Sixteen powers. Thirteen pages.</p>
+    <div id="heroStrip"></div>
     <div class="dedicate">
       <label for="who">Made for</label>
       <input id="who" maxlength="14" placeholder="a friend" autocomplete="off" spellcheck="false">
@@ -396,7 +408,7 @@
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
 
-const VERSION = 'v6.0';
+const VERSION = 'v6.1';
 const FLIP_DUR = 0.78;
 const MODES = [
   {id:'race',  name:'Race',      note:'First cape to the beacon takes the page.'},
@@ -2878,6 +2890,66 @@ function drawEmblem(c, id, pts, col){
   c.restore();
 }
 
+/* Title screen: a row of comic close-ups that cycle through the whole roster,
+   so you can see who is in the squad before you pick. */
+const STRIP_N = 5, STRIP_HOLD = 2.6;
+let titleStrip = [], stripAcc = 0;
+
+function drawHeadshot(g, H, t){
+  const W = 150, Hh = 150;
+  g.setTransform(1,0,0,1,0,0);
+  g.clearRect(0,0,W,Hh);
+  g.fillStyle = '#FFF3D6'; g.fillRect(0,0,W,Hh);
+  g.save(); g.globalAlpha = .30; g.fillStyle = H.cape; g.fillRect(0,0,W,Hh); g.restore();
+  g.save(); g.globalAlpha = .32; g.fillStyle = dotPat; g.fillRect(0,0,W,Hh); g.restore();
+
+  const pop = Math.min(1, t/0.26);
+  const sc = 3.0 * (0.9 + 0.1*pop);
+  const hy = H.neck ? 68 : 46;
+  const fake = {
+    H, kit:DEFAULT_KIT, x:-16, y:-44, w:PW, h:PH, vx:0, vy:0, face:1,
+    grounded:true, animT:t*2.2, squash:1, invul:0, low:false,
+    roll:0, shell:0, glide:false, charm:false, pushFx:0, dancing:0, danceT:0, cape:[]
+  };
+  for(let i=0;i<7;i++) fake.cape.push({x:-8-i*7, y:-34+i*5});
+  g.save();
+  g.beginPath(); g.rect(3,3,W-6,Hh-6); g.clip();
+  g.translate(W/2, Hh*0.56 + hy*sc);
+  g.scale(sc, sc);
+  drawHero(g, fake);
+  g.restore();
+
+  // name plate along the bottom, comic caption style
+  g.fillStyle = '#0B0A10'; g.fillRect(0, Hh-30, W, 30);
+  g.font = '700 21px Impact, "Arial Black", sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#FFD23F';
+  g.fillText(H.name.toUpperCase(), W/2, Hh-14);
+}
+
+function buildTitleStrip(){
+  const wrap = document.getElementById('heroStrip');
+  if(!wrap) return;
+  wrap.innerHTML = ''; titleStrip = [];
+  for(let i=0;i<STRIP_N;i++){
+    const c = document.createElement('canvas');
+    c.width = 150; c.height = 150; c.className = 'hpanel';
+    wrap.appendChild(c);
+    titleStrip.push({g:c.getContext('2d'), idx:i, t:i*(STRIP_HOLD/STRIP_N)});
+  }
+}
+
+function tickTitleStrip(dt){
+  for(const s of titleStrip){
+    s.t += dt;
+    if(s.t >= STRIP_HOLD){
+      s.t = 0;
+      s.idx = (s.idx + STRIP_N) % HERO_ORDER.length;
+    }
+    drawHeadshot(s.g, HEROES[HERO_ORDER[s.idx]], s.t);
+  }
+}
+
 function drawPortrait(g,H){
   g.setTransform(1,0,0,1,0,0);
   g.clearRect(0,0,240,182);
@@ -2918,6 +2990,10 @@ function loop(now){
   } else {
     acc = 0;
     input.forEach(s=>{ s.jumpP = false; s.powerP = false; });
+    if(game.state === 'title'){
+      stripAcc += dt;
+      if(stripAcc >= 1/24){ tickTitleStrip(stripAcc); stripAcc = 0; }
+    }
   }
 
   if(game.lvl && (game.state==='play' || game.state==='pause' ||
@@ -2929,6 +3005,7 @@ function loop(now){
   if(el) el.textContent = 'Cape Squad ' + VERSION;
 });
 
+buildTitleStrip();
 resize();
 show('title');
 requestAnimationFrame(loop);
