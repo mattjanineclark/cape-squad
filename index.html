@@ -328,13 +328,17 @@
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
 
-const VERSION = 'v1.3';
+const VERSION = 'v2.0';
+const FLIP_DUR = 0.78;
 const LEVEL_BLURB = [
   'Rooftop gaps, spikes and one springboard.',
   'Crawl the vents, or take the high road over them.',
   'No grip, moving platforms, and a saw that chases you.',
   'Straight down a brick shaft. Mind the saws.',
-  'Everything at once, and the longest run.'
+  'The whole skyline, and everything you have learned.',
+  'Springboards all the way up, then all the way down.',
+  'Deeper than the last drop, and far less forgiving.',
+  'Everything at once. No safety net.'
 ];
 
 const cvs = document.getElementById('game');
@@ -385,9 +389,13 @@ const HEROES = {
 const HERO_ORDER = ['panda','penguin','fox','bat','frog','tortoise'];
 
 /* ---------------------------------------------------------- physics */
-const GRAV=1560, MAX_FALL=940;
+/* Gravity is asymmetric: you rise slowly and fall hard, and you float a
+   moment at the top of the arc. Both are standard platformer practice and
+   together they are the single biggest change to how a jump feels. */
+const G_RISE=1280, G_FALL=2100, HANG_V=90, HANG_K=0.60, MAX_FALL=940;
 const RUN_ACC=1710, RUN_MAX=224, FRIC_GROUND=1625, FRIC_AIR=274, FRIC_ICE=111;
-const JUMP_V=-566, JUMP_CUT=-190, BOUNCE_V=-905;
+const TURN_BOOST=2.1;            /* reversing on the ground bites harder */
+const JUMP_V=-523, JUMP_CUT=-175, BOUNCE_V=-905;
 const ROLL_V=400, SLIDE_CAP=340, WALLJUMP_VX=280;
 const COYOTE=0.09, JUMP_BUF=0.12;
 const PW=32, PH=44, PH_LOW=21;
@@ -405,6 +413,7 @@ const LEVELS = [
   crates:[[1790,572], [1838,572]],
   checkpoints:[[1770,620], [2400,620]],
   stars:[[770,540], [1575,475], [2910,405]],
+  captions:[[80,560,"HIGH ABOVE THE CITY, THE SQUAD BEGINS ITS RUN..."], [1760,560,"CRATES! SOMEONE HAS BEEN BUSY."], [3100,560,"THE BEACON IS IN SIGHT!"]],
   goal:[3340,556]
 },
 {
@@ -416,6 +425,7 @@ const LEVELS = [
   crates:[[560,612], [608,612], [3300,612], [3348,612]],
   checkpoints:[[1090,660], [2330,660], [2810,660]],
   stars:[[1540,372], [2850,382], [3290,388]],
+  captions:[[80,600,"THE ROOFTOPS GIVE WAY TO A MAZE OF VENTS."], [1100,600,"SMALL ENOUGH TO CRAWL? THEN CRAWL."], [3260,600,"ALMOST THROUGH..."]],
   goal:[3560,596]
 },
 {
@@ -427,6 +437,7 @@ const LEVELS = [
   crates:[[2900,632], [2948,632]],
   checkpoints:[[1230,680], [2140,680], [2780,680]],
   stars:[[905,575], [1665,475], [3130,555]],
+  captions:[[80,620,"THE OLD ICE WORKS. NOTHING HERE HOLDS STILL."], [1480,470,"MIND THE BLADES."], [3580,620,"ONE LAST STRETCH."]],
   goal:[3780,616]
 },
 {
@@ -438,6 +449,7 @@ const LEVELS = [
   crates:[[380,2962], [428,2962]],
   checkpoints:[[800,430], [300,650], [300,1500], [500,1920], [500,2360]],
   stars:[[700,380], [560,1245], [820,2740]],
+  captions:[[170,150,"NO WAY OUT BUT DOWN."], [420,470,"THE SHAFT GOES ON, AND ON..."], [200,2600,"THE BOTTOM AT LAST!"]],
   goal:[480,2946]
 },
 {
@@ -449,7 +461,44 @@ const LEVELS = [
   crates:[[2985,692], [3033,692], [2985,644]],
   checkpoints:[[990,740], [2150,740], [2960,740], [3900,740]],
   stars:[[1700,467], [2620,440], [3820,515]],
+  captions:[[80,680,"THE WHOLE SKYLINE. EVERYTHING THEY HAVE LEARNED."], [2100,680,"ONE MORE VENT, FOR OLD TIMES SAKE."], [4160,680,"THE FINAL LEAP!"]],
   goal:[4330,676]
+},
+{
+  name:"Spring Loaded", w:3600, h:1300, spawn:[60,1080],
+  plats:[[-40,1160,360,200,"solid"], [420,1180,95,22,"bounce"], [560,900,200,20,"solid"], [860,940,95,22,"bounce"], [1000,660,220,20,"solid"], [1320,700,95,22,"bounce"], [1460,430,240,20,"solid"], [1780,470,95,22,"bounce"], [1920,260,200,20,"ice"], [2200,400,180,20,"solid"], [2460,620,200,20,"solid"], [2740,840,180,20,"crumble"], [2980,1060,200,20,"solid"], [3240,1160,360,200,"solid"]],
+  movers:[[2180,620,120,20,2180,260,95], [2620,900,120,20,2900,900,130]],
+  saws:[[1700,560,26,1900,560,150], [2300,520,24,2300,300,110]],
+  spikes:[[1100,660,60], [3320,1160,90]],
+  crates:[[600,852], [648,852]],
+  checkpoints:[[620,900], [1520,430], [2520,620], [3040,1060]],
+  stars:[[700,850], [1980,210], [2800,790]],
+  captions:[[80,1080,"SPRINGBOARDS! THE FASTEST WAY UP IS ALSO THE SILLIEST."], [1500,380,"TOP OF THE WORLD."], [3260,1080,"AND BACK DOWN AGAIN."]],
+  goal:[3420,1096]
+},
+{
+  name:"The Deep End", w:1160, h:3900, spawn:[190,120],
+  plats:[[0,-200,130,4300,"wall"], [1030,-200,130,4300,"wall"], [130,220,560,20,"solid"], [430,430,600,20,"solid"], [130,640,520,20,"ice"], [470,850,560,20,"solid"], [130,1060,540,20,"solid"], [130,1038,95,22,"bounce"], [450,1270,580,20,"crumble"], [130,1480,500,20,"solid"], [340,1690,200,20,"solid"], [700,1690,200,20,"solid"], [430,1900,600,20,"ice"], [130,2110,540,20,"solid"], [470,2320,560,20,"solid"], [130,2530,500,20,"crumble"], [400,2740,240,20,"solid"], [760,2740,270,20,"solid"], [130,2950,620,20,"solid"], [450,3160,580,20,"ice"], [130,3370,900,330,"solid"]],
+  movers:[[200,2220,130,20,640,2220,135], [640,3050,130,20,200,3050,125]],
+  saws:[[240,540,28,820,540,175], [240,1795,26,820,1795,195], [820,2430,28,300,2430,180]],
+  spikes:[[600,430,80], [640,1900,80]],
+  crates:[[400,3322], [448,3322]],
+  checkpoints:[[860,430], [300,640], [300,1480], [560,2110], [300,2950]],
+  stars:[[820,380], [230,1430], [880,2690]],
+  captions:[[190,150,"DEEPER THIS TIME. MUCH DEEPER."], [500,1600,"HALFWAY. PROBABLY."], [300,3300,"SOLID GROUND!"]],
+  goal:[560,3306]
+},
+{
+  name:"Last Page", w:5320, h:1000, spawn:[60,760],
+  plats:[[-40,840,400,160,"solid"], [480,840,260,160,"solid"], [840,780,140,20,"solid"], [1070,840,240,160,"solid"], [1160,790,60,20,"solid"], [1240,740,180,70,"solid"], [1450,660,130,20,"solid"], [1690,580,140,20,"solid"], [1940,650,150,20,"ice"], [2180,840,280,160,"solid"], [2540,780,110,20,"crumble"], [2720,710,110,20,"crumble"], [2900,840,260,160,"solid"], [3240,760,130,20,"solid"], [3470,680,130,20,"solid"], [3700,600,130,20,"solid"], [3930,700,150,20,"ice"], [4180,840,260,160,"solid"], [4520,780,120,20,"solid"], [4740,840,560,160,"solid"]],
+  movers:[[1900,440,130,20,2160,440,115], [3180,700,120,20,3180,540,90], [4560,700,130,20,4740,620,120]],
+  saws:[[1000,900,28,1140,900,150], [2220,840,30,2420,840,160], [3760,660,26,3760,470,110], [4560,880,26,4700,880,140]],
+  spikes:[[570,840,90], [4800,840,90]],
+  crates:[[2960,792], [3008,792], [2960,744]],
+  checkpoints:[[1070,840], [2180,840], [2900,840], [4180,840], [4740,840]],
+  stars:[[1740,512], [2790,665], [3760,532]],
+  captions:[[80,760,"THE LAST PAGE. NO SAFETY NET."], [2200,760,"KEEP MOVING!"], [4980,760,"THE END... FOR NOW."]],
+  goal:[5140,776]
 },
 ];
 
@@ -467,6 +516,7 @@ function buildLevel(i){
     crates:L.crates.map(c=>({x:c[0], y:c[1], w:48, h:48, t:'solid', gone:false, crate:true})),
     checkpoints:L.checkpoints.map(c=>({x:c[0], y:c[1], hit:false})),
     stars:L.stars.map(s=>({x:s[0], y:s[1], got:false, t:Math.random()*6})),
+    captions:(L.captions||[]).map(c=>({x:c[0], y:c[1], txt:c[2], fired:false})),
     goal:{x:L.goal[0], y:L.goal[1], w:46, h:64}
   };
 }
@@ -517,7 +567,7 @@ const game = {
   picking:0, picks:[null,null], nPlayers:1,
   time:0, wipes:0, starsGot:0, bests:{},
   fx:[], pops:[], winner:null, finished:0,
-  cam:{x:0,y:0,z:1}, dedicate:''
+  cam:{x:0,y:0,z:1}, dedicate:'', flip:0, caption:null, capT:0
 };
 
 function makePlayer(heroKey, idx){
@@ -649,8 +699,9 @@ function startLevel(i){
     p.cape = []; for(let k=0;k<7;k++) p.cape.push({x:p.x, y:p.y});
   });
   game.cam.x = L.spawn.x; game.cam.y = L.spawn.y; game.cam.z = 1;
+  game.flip = FLIP_DUR; game.caption = null; game.capT = 0;
   clearInputs();
-  game.state='play'; show(null);
+  game.state='flip'; show(null);
   $('hudLevel').textContent = L.name.toUpperCase();
   resize();
 }
@@ -726,7 +777,7 @@ function update(dt){
     } else if(p.fallT>=0){
       p.fallT -= dt;
       if(p.fallT<=0){
-        p.vy += GRAV*0.6*dt; p.y += p.vy*dt;
+        p.vy += G_FALL*0.45*dt; p.y += p.vy*dt;
         if(p.y > L.h+300){ p.gone=true; p.respawn=2.2; }
       }
     }
@@ -810,7 +861,10 @@ function updatePlayer(p, dt){
     if(Math.abs(p.vx) > 4) p.vx -= Math.sign(p.vx)*FRIC_ICE*0.55*dt; else p.vx = 0;
     p.vx = Math.max(-SLIDE_CAP, Math.min(SLIDE_CAP, p.vx));
   } else if(dir!==0){
-    p.vx += dir*(p.grounded ? RUN_ACC : RUN_ACC*0.72)*dt;
+    let acc = p.grounded ? RUN_ACC : RUN_ACC*0.72;
+    if(p.vx !== 0 && Math.sign(dir) !== Math.sign(p.vx)) acc *= TURN_BOOST;
+    if(!p.grounded && Math.abs(p.vy) < HANG_V) acc *= 1.25;   /* more air control at the apex */
+    p.vx += dir*acc*dt;
     if(Math.abs(p.vx) > RUN_MAX) p.vx = Math.sign(p.vx)*Math.max(RUN_MAX, Math.abs(p.vx)-1200*dt);
   } else {
     const f = p.grounded ? (onIce?FRIC_ICE:FRIC_GROUND) : FRIC_AIR;
@@ -832,7 +886,8 @@ function updatePlayer(p, dt){
   if(!st.jump && p.vy < JUMP_CUT) p.vy = JUMP_CUT;
 
   /* ---- gravity ---- */
-  let g = GRAV;
+  let g = (p.vy < 0) ? G_RISE : G_FALL;
+  if(Math.abs(p.vy) < HANG_V) g *= HANG_K;
   if(p.glide){ p.vy = Math.min(p.vy, 62); g = 0; }
   if(p.cling>0){ p.vy = Math.min(p.vy, 46); g = 0; p.cling -= dt; }
   p.vy = Math.min(p.vy + g*dt, MAX_FALL);
@@ -870,6 +925,16 @@ function updatePlayer(p, dt){
       if(s.t==='crumble' && s.fallT<0) s.fallT = 0.45;
       if(s.t==='bounce'){ p.vy = BOUNCE_V; p.grounded=false; p.squash=1.3; puff(p,8); pop(p,'BOING!'); }
     } else if(p.vy < 0){
+      /* Corner correction: clipping a ledge corner by a hair is the most
+         annoying way to lose a jump, so nudge past it instead of stopping. */
+      const overL = (p.x + p.w) - s.x, overR = (s.x + s.w) - p.x;
+      const NUDGE = 9;
+      if(overL > 0 && overL <= NUDGE && boxFree(p.x - overL, p.y, p.w, p.h)){
+        p.x -= overL; continue;
+      }
+      if(overR > 0 && overR <= NUDGE && boxFree(p.x + overR, p.y, p.w, p.h)){
+        p.x += overR; continue;
+      }
       p.y = s.y + s.h; p.vy = 40;
     }
   }
@@ -910,6 +975,14 @@ function updatePlayer(p, dt){
       pop(p,'STAR!'); for(let i=0;i<10;i++) spark(s.x, s.y, '#FFD23F');
     }
   }
+  for(const c of L.captions){
+    if(c.fired) continue;
+    if(p.x + p.w > c.x - 30 && p.x < c.x + 260 && Math.abs(p.y - c.y) < 220){
+      c.fired = true; game.caption = c.txt; game.capT = 3.4;
+    }
+  }
+  if(game.capT > 0) game.capT -= dt;
+
   const G = L.goal;
   if(!p.done && overlap(p,G)){
     p.done = true; p.rank = ++game.finished;
@@ -1105,6 +1178,113 @@ function render(){
     ctx.strokeText(txt,0,0); ctx.fillStyle = '#FFD23F'; ctx.fillText(txt,0,0);
     ctx.restore();
   }
+
+  drawCaption();
+  drawPanelFrame();
+  if(game.flip > 0) drawPageTurn(1 - game.flip/FLIP_DUR);
+}
+
+/* ---------- comic page furniture ----------
+   Everything the level sits inside: the panel border, the page tab, the
+   yellow blocked caption headers, and the page turn between levels. */
+
+function drawPanelFrame(){
+  const M = Math.max(7, Math.min(15, cssW*0.013));   // paper gutter
+  ctx.save();
+  ctx.fillStyle = '#FFF3D6';
+  ctx.fillRect(0,0,cssW,M); ctx.fillRect(0,cssH-M,cssW,M);
+  ctx.fillRect(0,0,M,cssH); ctx.fillRect(cssW-M,0,M,cssH);
+  ctx.globalAlpha = .28; ctx.fillStyle = dotPat;
+  ctx.fillRect(0,0,cssW,M); ctx.fillRect(0,cssH-M,cssW,M);
+  ctx.fillRect(0,0,M,cssH); ctx.fillRect(cssW-M,0,M,cssH);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#0B0A10'; ctx.lineWidth = 5;
+  ctx.strokeRect(M-2.5, M-2.5, cssW-(M-2.5)*2, cssH-(M-2.5)*2);
+  ctx.restore();
+  drawPageTab(M);
+}
+
+function drawPageTab(M){
+  const n = game.li + 1, total = LEVELS.length;
+  const label = 'PAGE ' + n + ' / ' + total;
+  ctx.save();
+  ctx.font = '700 13px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const w = ctx.measureText(label).width + 26, h = 22;
+  const x = cssW/2 - w/2, y = M - 4;
+  ctx.fillStyle = '#0B0A10'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#FFD23F';
+  ctx.fillText(label, cssW/2, y + h/2 + 1);
+  ctx.restore();
+}
+
+function drawCaption(){
+  if(!game.caption || game.capT <= 0) return;
+  const life = game.capT / 3.4;
+  const slide = life > 0.88 ? (1 - (life-0.88)/0.12) : (life < 0.12 ? life/0.12 : 1);
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, slide));
+  ctx.font = '700 ' + Math.round(Math.min(17, cssW/30)) + 'px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const pad = 12, txt = game.caption;
+  const tw = ctx.measureText(txt).width;
+  const bw = Math.min(cssW - 60, tw + pad*2), bh = 32;
+  const bx = (cssW - bw)/2, by = cssH*0.16 - (1-slide)*14;
+  ctx.fillStyle = '#FFD23F';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = '#0B0A10'; ctx.lineWidth = 4;
+  ctx.strokeRect(bx, by, bw, bh);
+  ctx.fillStyle = '#0B0A10';
+  ctx.fillText(txt, bx + pad, by + bh/2 + 1);
+  ctx.restore();
+}
+
+function drawPageTurn(u){
+  /* the outgoing page peels away to the left, revealing the page beneath */
+  const e = u*u*(3-2*u);                    // ease
+  const edge = cssW * (1 - e);
+  const curl = 46 * Math.sin(Math.PI*e);
+  ctx.save();
+
+  // shadow the incoming page just past the turning edge
+  const sh = ctx.createLinearGradient(edge, 0, edge + 90, 0);
+  sh.addColorStop(0, 'rgba(11,10,16,0.45)');
+  sh.addColorStop(1, 'rgba(11,10,16,0)');
+  ctx.fillStyle = sh;
+  ctx.fillRect(edge, 0, 90, cssH);
+
+  // the page itself
+  ctx.beginPath();
+  ctx.moveTo(-2, -2);
+  ctx.lineTo(edge, -2);
+  ctx.quadraticCurveTo(edge + curl, cssH/2, edge, cssH + 2);
+  ctx.lineTo(-2, cssH + 2);
+  ctx.closePath();
+  ctx.fillStyle = '#F6E7C2'; ctx.fill();
+  ctx.save(); ctx.clip();
+  ctx.globalAlpha = .5; ctx.fillStyle = dotPat; ctx.fillRect(0,0,cssW,cssH);
+  ctx.globalAlpha = 1;
+
+  // what is printed on the page we are turning
+  const L = game.lvl;
+  ctx.translate(Math.min(edge, cssW)/2, cssH/2);
+  ctx.rotate(-0.035);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0B0A10';
+  ctx.font = '700 ' + Math.round(Math.min(15, cssW/44)) + 'px Impact, "Arial Black", sans-serif';
+  ctx.fillText('PAGE ' + (game.li+1), 0, -Math.min(46, cssH*0.13));
+  ctx.font = '700 ' + Math.round(Math.min(58, cssW/13)) + 'px Impact, "Arial Black", sans-serif';
+  ctx.lineWidth = 7; ctx.strokeStyle = '#0B0A10';
+  ctx.strokeText(L.name.toUpperCase(), 0, 0);
+  ctx.fillStyle = '#E8552B'; ctx.fillText(L.name.toUpperCase(), 0, 0);
+  ctx.restore();
+
+  ctx.lineWidth = 5; ctx.strokeStyle = '#0B0A10';
+  ctx.beginPath();
+  ctx.moveTo(edge, -2);
+  ctx.quadraticCurveTo(edge + curl, cssH/2, edge, cssH + 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawCity(par, col, baseY, alpha, s, cam){
@@ -1491,6 +1671,10 @@ function loop(now){
   let dt = (now-last)/1000; last = now;
   if(dt > 0.25) dt = 0.25;
 
+  if(game.state==='flip'){
+    game.flip -= dt;
+    if(game.flip <= 0){ game.flip = 0; game.state = 'play'; }
+  }
   if(game.state==='play'){
     acc += dt;
     let guard = 0;
@@ -1503,7 +1687,8 @@ function loop(now){
     input.forEach(s=>{ s.jumpP = false; s.powerP = false; });
   }
 
-  if(game.lvl && (game.state==='play' || game.state==='pause' || game.state==='end')) render();
+  if(game.lvl && (game.state==='play' || game.state==='pause' ||
+                  game.state==='end'  || game.state==='flip')) render();
 }
 
 ['verTitle','verLevel','verPause'].forEach(id=>{
