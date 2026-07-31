@@ -157,6 +157,29 @@
   .keys{margin-top:16px; font-size:11.5px; line-height:1.7; text-transform:uppercase; letter-spacing:.05em;}
   .keys kbd{font-family:var(--display); font-size:12px; background:var(--ink); color:var(--paper); padding:2px 6px 1px; margin:0 1px;}
 
+  .ver{
+    font-family:var(--display); font-size:13px; letter-spacing:.18em;
+    color:var(--paper); opacity:.55; margin-top:18px;
+  }
+  .lvlcard{
+    position:relative; cursor:pointer; padding:12px 10px 12px 46px; text-align:left;
+    background:var(--paper); border:4px solid var(--ink); box-shadow:6px 6px 0 var(--ink);
+    color:var(--ink); transition:transform .08s;
+  }
+  .lvlcard:active{transform:translate(3px,3px);}
+  .lvlcard .num{
+    position:absolute; left:-14px; top:50%; transform:translateY(-50%) rotate(-8deg);
+    width:36px; height:36px; background:var(--pow); border:4px solid var(--ink);
+    font-family:var(--display); font-size:20px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .lvlcard.down .num{background:var(--ice);}
+  .lvlcard .lname{font-family:var(--display); text-transform:uppercase; font-size:19px; line-height:1;}
+  .lvlcard .lblurb{font-size:11.5px; line-height:1.35; opacity:.78; margin-top:4px;}
+  .lvlcard .lbest{
+    font-family:var(--display); font-size:12px; letter-spacing:.1em;
+    margin-top:5px; opacity:.6;
+  }
   #rotate{
     position:absolute; inset:0; z-index:40; display:none; align-items:center; justify-content:center;
     text-align:center; padding:30px; background:var(--ink);
@@ -225,6 +248,7 @@
     <div class="row" style="margin-top:14px;">
       <button class="btn ghost" id="btnHow" style="font-size:16px;">How to play</button>
     </div>
+    <div class="ver" id="verTitle">version</div>
   </div>
 
   <div class="screen" id="scSelect">
@@ -232,6 +256,14 @@
     <p class="selsub" id="selSub">Everyone jumps the same. Every power is different.</p>
     <div class="roster" id="roster"></div>
     <div class="row"><button class="btn ghost" id="btnSelBack" style="font-size:16px;">Back</button></div>
+  </div>
+
+  <div class="screen" id="scLevel">
+    <h1 class="selhead" id="lvlHead">Pick your rooftop</h1>
+    <p class="selsub">Number four goes straight down.</p>
+    <div class="roster" id="levelList" style="grid-template-columns:repeat(auto-fit,minmax(232px,1fr));"></div>
+    <div class="row"><button class="btn ghost" id="btnLevelBack" style="font-size:16px;">Change hero</button></div>
+    <div class="ver" id="verLevel">version</div>
   </div>
 
   <div class="screen" id="scHow">
@@ -263,6 +295,7 @@
       <div class="row" style="margin-top:12px;">
         <button class="btn warn" id="btnQuit" style="font-size:16px;">Quit to title</button>
       </div>
+      <div class="ver" id="verPause" style="color:var(--ink); opacity:.45;">version</div>
     </div>
   </div>
 
@@ -294,6 +327,15 @@
 /* ==========================================================
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
+
+const VERSION = 'v1.3';
+const LEVEL_BLURB = [
+  'Rooftop gaps, spikes and one springboard.',
+  'Crawl the vents, or take the high road over them.',
+  'No grip, moving platforms, and a saw that chases you.',
+  'Straight down a brick shaft. Mind the saws.',
+  'Everything at once, and the longest run.'
+];
 
 const cvs = document.getElementById('game');
 const ctx = cvs.getContext('2d');
@@ -492,6 +534,7 @@ function makePlayer(heroKey, idx){
 /* ---------------------------------------------------------- screens */
 const screens = {
   title:document.getElementById('scTitle'), select:document.getElementById('scSelect'),
+  level:document.getElementById('scLevel'),
   how:document.getElementById('scHow'), pause:document.getElementById('scPause'),
   end:document.getElementById('scEnd')
 };
@@ -504,6 +547,7 @@ const $ = id=>document.getElementById(id);
 $('btnHow').onclick = ()=>{ game.state='how'; show('how'); };
 $('btnHowBack').onclick = ()=>{ game.state='title'; show('title'); };
 $('btnSelBack').onclick = ()=>{ game.state='title'; show('title'); };
+$('btnLevelBack').onclick = ()=>{ game.picking=0; buildRoster(); updateSelectHead(); game.state='select'; show('select'); };
 $('btn1p').onclick = ()=>openSelect(1);
 $('btn2p').onclick = ()=>openSelect(2);
 $('pauseBtn').onclick = ()=>{ game.state==='pause' ? resume() : pause(); };
@@ -560,7 +604,25 @@ function pick(key){
   game.players = keys.map((k,i)=>makePlayer(k,i));
   const two = game.nPlayers===2;
   layoutPads(two);
-  startLevel(0);
+  openLevelSelect();
+}
+function openLevelSelect(){
+  const list = $('levelList');
+  list.innerHTML = '';
+  LEVELS.forEach((L,i)=>{
+    const best = game.bests['L'+i+'P'+game.nPlayers];
+    const card = document.createElement('div');
+    card.className = 'lvlcard' + (L.h > L.w ? ' down' : '');
+    card.innerHTML =
+      '<div class="num">'+(i+1)+'</div>'+
+      '<div class="lname">'+L.name+'</div>'+
+      '<div class="lblurb">'+(LEVEL_BLURB[i]||'')+'</div>'+
+      '<div class="lbest">'+(best!==undefined ? 'best '+best.toFixed(1)+'"' : 'not run yet')+'</div>';
+    card.onclick = ()=>startLevel(i);
+    list.appendChild(card);
+  });
+  $('lvlHead').textContent = game.nPlayers===2 ? 'Pick your rooftop to race' : 'Pick your rooftop';
+  game.state='level'; show('level');
 }
 function layoutPads(two){
   $('padSoloMove').style.display = two ? 'none' : 'flex';
@@ -1443,6 +1505,11 @@ function loop(now){
 
   if(game.lvl && (game.state==='play' || game.state==='pause' || game.state==='end')) render();
 }
+
+['verTitle','verLevel','verPause'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.textContent = 'Cape Squad ' + VERSION;
+});
 
 resize();
 show('title');
