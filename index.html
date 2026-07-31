@@ -125,6 +125,11 @@
   .tk.big{width:68px; height:68px; font-size:15px; letter-spacing:.04em;}
   .tk.jump{background:rgba(255,210,63,.74);}
   .tk.pow{background:rgba(127,227,240,.74); font-size:13px;}
+  .tk.dance{
+    width:50px; height:50px; font-size:10px; letter-spacing:.03em;
+    background:rgba(255,143,177,.74);
+  }
+  .pad.solo .tk.dance{width:58px; height:58px; font-size:11px;}
   .tk.act{transform:scale(.9); filter:brightness(.85);}
   /* solo layout: room to breathe, so the pads get bigger */
   .pad.solo{gap:14px;}
@@ -253,9 +258,11 @@
       <div class="tk" data-p="0" data-k="right">&#9654;</div>
       <div class="tk big jump" data-p="0" data-k="jump">JUMP</div>
       <div class="tk big pow" data-p="0" data-k="power">POWER</div>
+      <div class="tk dance" data-p="0" data-k="dance">DANCE</div>
     </div>
     <div class="padlabel" id="lab2">P2</div>
     <div class="pad side-r" id="pad2" style="display:none;">
+      <div class="tk dance" data-p="1" data-k="dance">DANCE</div>
       <div class="tk big pow" data-p="1" data-k="power">POWER</div>
       <div class="tk big jump" data-p="1" data-k="jump">JUMP</div>
       <div class="tk" data-p="1" data-k="left">&#9664;</div>
@@ -322,8 +329,8 @@
         With two players it's a race: first cape to the beacon wins the rooftop.
       </p>
       <div class="keys">
-        <div><b>Player 1</b> &nbsp; <kbd>A</kbd><kbd>D</kbd> move &nbsp; <kbd>W</kbd> jump &nbsp; <kbd>S</kbd> power</div>
-        <div><b>Player 2</b> &nbsp; <kbd>&larr;</kbd><kbd>&rarr;</kbd> move &nbsp; <kbd>&uarr;</kbd> jump &nbsp; <kbd>&darr;</kbd> power</div>
+        <div><b>Player 1</b> &nbsp; <kbd>A</kbd><kbd>D</kbd> move &nbsp; <kbd>W</kbd> jump &nbsp; <kbd>S</kbd> power &nbsp; <kbd>Q</kbd> dance</div>
+        <div><b>Player 2</b> &nbsp; <kbd>&larr;</kbd><kbd>&rarr;</kbd> move &nbsp; <kbd>&uarr;</kbd> jump &nbsp; <kbd>&darr;</kbd> power &nbsp; <kbd>M</kbd> dance</div>
         <div><b>Phone, one player</b> &nbsp; move on the left, jump and power on the right</div>
         <div><b>Phone, two players</b> &nbsp; P1 takes the left end, P2 the right</div>
         <div style="opacity:.6"><kbd>Esc</kbd> pause &nbsp; <kbd>R</kbd> restart</div>
@@ -331,6 +338,7 @@
         they will knock you clean off a ledge.</div>
         <div>Inside a purple <b>NO POWERS</b> field, nobody's power works. Plain jumping only.</div>
         <div>Pause any time to change hero or jump to another page.</div>
+        <div>Hold <b>dance</b> while standing still. Every hero dances differently.</div>
       </div>
       <div class="row"><button class="btn" id="btnHowBack">Got it</button></div>
     </div>
@@ -388,7 +396,7 @@
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
 
-const VERSION = 'v5.1';
+const VERSION = 'v6.0';
 const FLIP_DUR = 0.78;
 const MODES = [
   {id:'race',  name:'Race',      note:'First cape to the beacon takes the page.'},
@@ -396,6 +404,7 @@ const MODES = [
   {id:'tag',   name:'Tag',       note:'One of you is IT. Touch to pass it on. Whoever is IT when the clock runs out loses.'}
 ];
 const STAR_TARGET = 5, STAR_RESPAWN = 4.0, TAG_TIME = 60, TAG_CD = 1.1;
+const DANCE_WORDS = ['BOOGIE!','GROOVE!','SHAKE IT!','DISCO!','WOO!','FUNKY!','TWIST!','JIVE!','WIGGLE!'];
 const BANGS = ['BANG!','BASH!','POW!','WHAM!','THWACK!','SOCK!','KABOOM!','BOP!'];
 const LEVEL_BLURB = [
   'Rooftop gaps, spikes and one springboard.',
@@ -432,51 +441,82 @@ addEventListener('orientationchange', ()=>setTimeout(resize, 220));
 
 /* ---------------------------------------------------------- heroes */
 const HEROES = {
-  panda:{ key:'panda', name:'Panda', alias:'Captain Bamboo',
+  panda:{ key:'panda', dance:'bob', name:'Panda', alias:'Captain Bamboo',
     body:'#FFF6E8', dark:'#14131C', belly:'#FFF6E8', cape:'#1B1A26', capeLine:'#5A5670',
     limb:'#14131C', beak:null, accent:'#FFD23F', power:'Roll', when:'on the ground',
     desc:'Tuck into a barrel roll. Smashes crates and fits through vents.' },
-  penguin:{ key:'penguin', name:'Penguin', alias:'Frostwing',
+  penguin:{ key:'penguin', dance:'shimmy', name:'Penguin', alias:'Frostwing',
     body:'#1C2340', dark:'#0E1226', belly:'#FFFDF4', cape:'#6FDCF5', capeLine:'#BEF3FB',
     limb:'#F79A2B', beak:'#F79A2B', accent:'#6FDCF5', power:'Slide', when:'held on the ground',
     desc:'Belly-slide with almost no friction. Keeps speed and stays low.' },
-  fox:{ key:'fox', name:'Fox', alias:'Ember Tail',
+  fox:{ key:'fox', dance:'spin', name:'Fox', alias:'Ember Tail',
     body:'#E97A2E', dark:'#7A2E12', belly:'#FFF1DC', cape:'#E63946', capeLine:'#FF8894',
     limb:'#5A2410', beak:null, accent:'#E63946', power:'Twin Leap', when:'in mid-air',
     desc:'A second jump out of thin air. Clears gaps nobody else can.' },
-  bat:{ key:'bat', name:'Bat', alias:'Night Shade',
+  bat:{ key:'bat', dance:'flap', name:'Bat', alias:'Night Shade',
     body:'#6B4BC4', dark:'#33206B', belly:'#B9A6F2', cape:'#8B5CF6', capeLine:'#D6C4FF',
     limb:'#33206B', beak:null, accent:'#B9A6F2', power:'Glide', when:'held while falling',
     desc:'Spread the cape and drift. Turns a long fall into a long flight.' },
-  frog:{ key:'frog', name:'Frog', alias:'Sticky Bolt',
+  frog:{ key:'frog', dance:'hop', name:'Frog', alias:'Sticky Bolt',
     body:'#68C43E', dark:'#2F6B1D', belly:'#EFF9C9', cape:'#9BE85A', capeLine:'#DBFFA4',
     limb:'#2F6B1D', beak:null, accent:'#9BE85A', power:'Wall Cling', when:'held against a wall',
     desc:'Stick to any wall, then leap off it. Climbing becomes a shortcut.' },
-  rabbit:{ key:'rabbit', name:'Rabbit', alias:'Moon Kick',
+  rabbit:{ key:'rabbit', dance:'hop', name:'Rabbit', alias:'Moon Kick',
     body:'#F4E9DD', dark:'#8A7A6A', belly:'#FFFDF6', cape:'#FF8FB1', capeLine:'#FFD7E4',
     limb:'#8A7A6A', beak:null, accent:'#FF8FB1', power:'Sky Hop', when:'on the ground',
     desc:'One jump, half again as high. Those legs are not for show.' },
-  squirrel:{ key:'squirrel', name:'Squirrel', alias:'Acorn Bolt',
+  squirrel:{ key:'squirrel', dance:'wiggle', name:'Squirrel', alias:'Acorn Bolt',
     body:'#B5702F', dark:'#5E3316', belly:'#FFE9C9', cape:'#F2A93B', capeLine:'#FFDD9A',
     limb:'#5E3316', beak:null, accent:'#F2A93B', power:'Air Dash', when:'in mid-air',
     desc:'A flat burst straight forward. Eats long gaps for breakfast.' },
-  kiwi:{ key:'kiwi', name:'Kiwi', alias:'Southern Streak',
+  kiwi:{ key:'kiwi', dance:'strut', name:'Kiwi', alias:'Southern Streak',
     body:'#8A6A46', dark:'#3E2A18', belly:'#C9A87C', cape:'#2ECC9A', capeLine:'#A8F0DA',
     limb:'#D9822B', beak:'#D9822B', longBeak:true, accent:'#2ECC9A',
     power:'Turbo', when:'held on the ground',
     desc:'Cannot fly and does not care. Flat out along the ground.' },
-  elephant:{ key:'elephant', name:'Elephant', alias:'Grey Thunder',
+  elephant:{ key:'elephant', dance:'stomp', name:'Elephant', alias:'Grey Thunder',
     body:'#9AA3B2', dark:'#4E5666', belly:'#C6CCD8', cape:'#5B7CE8', capeLine:'#BACAFF',
     limb:'#4E5666', beak:null, accent:'#5B7CE8', power:'Ground Pound', when:'in mid-air',
     desc:'Come down like a dropped piano. Crates do not survive.' },
-  tortoise:{ key:'tortoise', name:'Tortoise', alias:'Iron Shell',
+  dog:{ key:'dog', name:'Dog', alias:'Captain Loyal',
+    body:'#C98A4B', dark:'#6B4423', belly:'#FFEBD2', cape:'#3B6FE0', capeLine:'#A9C4FF',
+    limb:'#6B4423', beak:null, accent:'#3B6FE0', dance:'wag',
+    power:'Pounce', when:'on the ground or in the air',
+    desc:'A leap that goes up and forward at once. Good boy.' },
+  cat:{ key:'cat', name:'Cat', alias:'Midnight Whisker',
+    body:'#3B3646', dark:'#1B1826', belly:'#8E88A8', cape:'#B388FF', capeLine:'#E2D2FF',
+    limb:'#1B1826', beak:null, accent:'#B388FF', dance:'shimmy',
+    power:'Nine Lives', when:'anywhere, then it recharges',
+    desc:'Arm a charm that soaks up one nasty landing. Then wait for it to come back.' },
+  sheep:{ key:'sheep', name:'Sheep', alias:'Cloudwool',
+    body:'#FFFDF6', dark:'#3B3646', belly:'#FFFDF6', cape:'#7ED957', capeLine:'#CFF5B8',
+    limb:'#3B3646', beak:null, accent:'#7ED957', dance:'bounce', wool:true,
+    power:'Wool Bounce', when:'in mid-air',
+    desc:'All that fleece has to be good for something. The next landing throws you back up.' },
+  chicken:{ key:'chicken', name:'Chicken', alias:'The Coop Crusader',
+    body:'#FFF3D6', dark:'#C97F1E', belly:'#FFFDF6', cape:'#E63946', capeLine:'#FFA9B0',
+    limb:'#F2A93B', beak:'#F2A93B', accent:'#E63946', dance:'flap',
+    power:'Flutter', when:'in mid-air, three flaps',
+    desc:'Not flight exactly. Three frantic flaps, and each one buys a little height.' },
+  giraffe:{ key:'giraffe', name:'Giraffe', alias:'The Tall Justice',
+    body:'#F0C060', dark:'#9A6B24', belly:'#FFF0CC', cape:'#E8552B', capeLine:'#FFBFA3',
+    limb:'#9A6B24', beak:null, accent:'#E8552B', dance:'sway', neck:true,
+    power:'Neck Climb', when:'on the ground under a ledge',
+    desc:'Reach up and haul yourself onto a ledge no jump would reach.' },
+  whale:{ key:'whale', name:'Whale', alias:'Deep Blue',
+    body:'#4E7FD8', dark:'#254A8E', belly:'#CFE2FF', cape:'#7FE3F0', capeLine:'#D6FAFF',
+    limb:'#254A8E', beak:null, accent:'#7FE3F0', dance:'wobble', fluke:true,
+    power:'Tidal Push', when:'anywhere, with a cooldown',
+    desc:'A shockwave that swats gloves out of the air and shoves your rival away.' },
+  tortoise:{ key:'tortoise', dance:'headbang', name:'Tortoise', alias:'Iron Shell',
     body:'#7FB86B', dark:'#3E5F32', belly:'#E9F3D4', cape:'#FFC93C', capeLine:'#FFE79B',
     limb:'#3E5F32', beak:null, accent:'#FFC93C', shell:'#8A5A2B', shellDark:'#5E3A18',
     power:'Iron Shell', when:'anywhere',
     desc:'Go armoured for a moment. Spikes and saws bounce right off.' }
 };
 const HERO_ORDER = ['panda','penguin','fox','bat','frog','tortoise',
-                    'rabbit','squirrel','kiwi','elephant'];
+                    'rabbit','squirrel','kiwi','elephant',
+                    'dog','cat','sheep','chicken','giraffe','whale'];
 
 /* Costume pieces are purely for show. Nothing here touches the physics, so a
    race stays fair however silly you look. */
@@ -526,6 +566,8 @@ const ROLL_V=400, SLIDE_CAP=340, WALLJUMP_VX=280;
    scales with the square of launch speed, so this is deliberately modest. */
 const SKYHOP_V=-620, DASH_V=430, TURBO_MULT=1.7, POUND_V=760;
 const GLIDE_FUEL=1.1, GLIDE_CAP=105;
+const POUNCE_VY=-470, POUNCE_VX=330, WOOL_VY=-560, FLAP_VY=-250, FLAP_MAX=3;
+const CLIMB_REACH=160, PUSH_R=120, PUSH_V=420;
 const COYOTE=0.09, JUMP_BUF=0.12;
 const PW=32, PH=44, PH_LOW=21;
 
@@ -800,12 +842,13 @@ function buildLevel(i){
 
 /* ---------------------------------------------------------- input */
 const input = [
-  {left:false,right:false,jump:false,jumpP:false,power:false,powerP:false},
-  {left:false,right:false,jump:false,jumpP:false,power:false,powerP:false}
+  {left:false,right:false,jump:false,jumpP:false,power:false,powerP:false,dance:false},
+  {left:false,right:false,jump:false,jumpP:false,power:false,powerP:false,dance:false}
 ];
 const KEYMAP = {
   KeyA:[0,'left'], KeyD:[0,'right'], KeyW:[0,'jump'], KeyS:[0,'power'],
-  ArrowLeft:[1,'left'], ArrowRight:[1,'right'], ArrowUp:[1,'jump'], ArrowDown:[1,'power']
+  ArrowLeft:[1,'left'], ArrowRight:[1,'right'], ArrowUp:[1,'jump'], ArrowDown:[1,'power'],
+  KeyQ:[0,'dance'], KeyM:[1,'dance']
 };
 function setBtn(p,k,down){
   const st = input[p]; if(!st) return;
@@ -857,7 +900,9 @@ function makePlayer(heroKey, idx){
     shell:0, shellCd:0, cling:0, clingDir:0, rideMover:null,
     animT:0, squash:1, invul:0, done:false, rank:0, offT:0, stars:0,
     cp:{x:0,y:0}, cpRef:null, belt:0, onHero:null, rideStamp:null, hurt:0, stun:0, it:false, tagCd:0, dash:0, dashed:false, hopCd:0, turbo:false, turboPrev:false,
-    turboFuel:1.5, pound:false, glideFuel:GLIDE_FUEL, wasDamped:false, jumpCut:false, cape:[]
+    turboFuel:1.5, pound:false, glideFuel:GLIDE_FUEL, wasDamped:false, jumpCut:false,
+    pounced:false, charm:false, charmCd:0, wool:false, flaps:0, climbCd:0,
+    pushCd:0, pushFx:0, dancing:0, danceT:0, danceWord:-9, cape:[]
   };
 }
 
@@ -1094,6 +1139,8 @@ function startLevel(i){
     p.it = (game.activeMode==='tag' && n===0); p.tagCd = 1.4;
     p.dash=0; p.dashed=false; p.hopCd=0; p.turbo=false; p.turboFuel=1.5;
     p.pound=false; p.glideFuel=GLIDE_FUEL; p.wasDamped=false; p.jumpCut=false;
+    p.pounced=false; p.charm=false; p.charmCd=0; p.wool=false; p.flaps=0;
+    p.climbCd=0; p.pushCd=0; p.pushFx=0; p.dancing=0; p.danceT=0; p.danceWord=-9;
     p.cp = {x:p.x, y:p.y}; p.cpRef = null;
     p.cape = []; for(let k=0;k<7;k++) p.cape.push({x:p.x, y:p.y});
   });
@@ -1113,7 +1160,7 @@ function pause(){
 }
 function resume(){ if(game.state!=='pause') return; game.state='play'; show(null); }
 function clearInputs(){
-  input.forEach(s=>{ s.left=s.right=s.jump=s.power=false; s.jumpP=s.powerP=false; });
+  input.forEach(s=>{ s.left=s.right=s.jump=s.power=s.dance=false; s.jumpP=s.powerP=false; });
   document.querySelectorAll('.tk.act').forEach(el=>el.classList.remove('act'));
 }
 
@@ -1341,8 +1388,13 @@ function updatePlayer(p, dt){
   p.slide = false; p.glide = false;
   if(p.dash>0) p.dash -= dt;
   if(p.hopCd>0) p.hopCd -= dt;
+  if(p.charmCd>0) p.charmCd -= dt;
+  if(p.pushCd>0) p.pushCd -= dt;
+  if(p.climbCd>0) p.climbCd -= dt;
+  if(p.pushFx>0) p.pushFx -= dt;
   if(p.grounded){
     p.dashed = false; p.pound = false; p.glideFuel = GLIDE_FUEL;
+    p.pounced = false; p.flaps = 0;
     if(!st.power) p.turboFuel = Math.min(1.5, p.turboFuel + dt*0.7);
   }
   p.turbo = false;
@@ -1352,6 +1404,7 @@ function updatePlayer(p, dt){
   if(damped){
     if(!p.wasDamped){ pop(p,'POWERS OUT!'); }
     p.roll = 0; p.shell = 0; p.cling = 0; p.dash = 0; p.twin = true; p.pound = false;
+    p.wool = false; p.charm = false; p.pounced = true; p.flaps = FLAP_MAX;
   }
   p.wasDamped = damped;
 
@@ -1395,6 +1448,62 @@ function updatePlayer(p, dt){
     if(st.powerP && !p.grounded && !p.pound){
       p.pound = true; p.vy = POUND_V; p.jumpCut = false; pop(p,'GROUND POUND!');
     }
+  } else if(H==='dog'){
+    if(st.powerP && !p.pounced){
+      p.pounced = true; p.vy = POUNCE_VY; p.vx = p.face*POUNCE_VX; p.jumpCut = false;
+      pop(p,'POUNCE!'); puff(p,7);
+    }
+  } else if(H==='cat'){
+    if(st.powerP && !p.charm && p.charmCd<=0){
+      p.charm = true; p.charmCd = 9.0; pop(p,'NINE LIVES!'); puff(p,6);
+    }
+  } else if(H==='sheep'){
+    if(st.powerP && !p.grounded && !p.wool){
+      p.wool = true; pop(p,'WOOL UP!'); puff(p,6);
+    }
+  } else if(H==='chicken'){
+    if(st.powerP && !p.grounded && p.flaps < FLAP_MAX){
+      p.flaps++; p.vy = Math.min(p.vy, 0) + FLAP_VY; p.jumpCut = false;
+      pop(p, p.flaps>=FLAP_MAX ? 'LAST FLAP!' : 'FLAP!'); puff(p,4);
+    }
+  } else if(H==='giraffe'){
+    if(st.powerP && p.grounded && p.climbCd<=0){
+      let best = null;
+      for(const so of solidsAt()){
+        const rise = (p.y + p.h) - so.y;
+        if(rise < 30 || rise > CLIMB_REACH) continue;
+        if(so.x > p.x + p.w + 6 || so.x + so.w < p.x - 6) continue;
+        if(!boxFree(p.x, so.y - p.h, p.w, p.h)) continue;
+        if(!best || so.y > best.y) best = so;
+      }
+      if(best){
+        p.y = best.y - p.h; p.vy = 0; p.climbCd = 0.9;
+        pop(p,'STRETCH!'); puff(p,7);
+      } else { pop(p,'NOTHING TO GRAB'); }
+    }
+  } else if(H==='whale'){
+    if(st.powerP && p.pushCd<=0){
+      p.pushCd = 2.2; p.pushFx = 0.35;
+      pop(p,'TIDAL PUSH!');
+      const cx = p.x + p.w/2, cy = p.y + p.h/2;
+      for(let i=game.gloves.length-1;i>=0;i--){
+        const gl = game.gloves[i];
+        if(Math.hypot(gl.x-cx, gl.y-cy) < PUSH_R){
+          for(let k=0;k<6;k++) spark(gl.x, gl.y, '#7FE3F0');
+          game.gloves.splice(i,1);
+        }
+      }
+      for(const o of game.players){
+        if(o===p) continue;
+        const d = Math.hypot(o.x+o.w/2-cx, o.y+o.h/2-cy);
+        if(d < PUSH_R*1.5){
+          o.vx = Math.sign((o.x+o.w/2)-cx || 1)*PUSH_V;
+          o.vy = -180; o.stun = 0.25; o.jumpCut = false;
+          game.pops.push({x:o.x+o.w/2, y:o.y-10, txt:'WHOOSH!', life:0.7, col:'#7FE3F0'});
+        }
+      }
+      for(let k=0;k<20;k++) spark(cx, cy, k%2 ? '#7FE3F0' : '#CFE2FF');
+    }
   } else if(H==='tortoise'){
     if(st.powerP && p.shellCd<=0){
       p.shell=1.25; p.shellCd=3.0; pop(p,'IRON SHELL!'); puff(p,9);
@@ -1417,6 +1526,22 @@ function updatePlayer(p, dt){
   const dir = p.stun>0 ? 0 : ((st.right?1:0) - (st.left?1:0));
   if(dir!==0 && !rolling) p.face = dir;
   const onIce = p.groundType==='ice';
+
+  /* Dancing: standing still, on the ground, holding the dance button. Purely for
+     showing off, so it stops the moment you try to move. */
+  if(st.dance && p.grounded && dir===0 && p.stun<=0 && p.roll<=0 && !p.slide){
+    p.dancing = 0.2; p.danceT += dt;
+    p.vx *= 0.55;
+    if(p.danceT - p.danceWord > 1.05){
+      p.danceWord = p.danceT;
+      game.pops.push({x:p.x+p.w/2, y:p.y-14,
+                      txt:DANCE_WORDS[(Math.random()*DANCE_WORDS.length)|0],
+                      life:0.85, col:p.H.accent});
+      for(let i=0;i<4;i++) spark(p.x+p.w/2+(Math.random()-0.5)*30, p.y+8, p.H.accent);
+    }
+  } else if(p.dancing > 0){
+    p.dancing -= dt;
+  }
 
   if(p.dash>0){
     p.vx = p.face*DASH_V;
@@ -1537,6 +1662,11 @@ function updatePlayer(p, dt){
       if(p.pound){ game.pops.push({x:p.x+p.w/2, y:p.y-6, txt:'WHUMP!', life:0.7, col:'#5B7CE8'}); }
     }
     p.pound = false; p.jumpCut = false;
+    if(p.wool){
+      p.wool = false; p.vy = WOOL_VY; p.grounded = false; p.jumpCut = false;
+      p.squash = 1.3; puff(p,9);
+      game.pops.push({x:p.x+p.w/2, y:p.y-6, txt:'SPROING!', life:0.7, col:'#7ED957'});
+    }
   } else if(p.wasGrounded){
     p.coyote = COYOTE;
   }
@@ -1595,7 +1725,7 @@ function updatePlayer(p, dt){
       break;
     }
   }
-  if(p.y > L.h + 220){ kill(p); return; }
+  if(p.y > L.h + 220){ kill(p, true); return; }
   if(p.x < -20){ p.x = -20; if(p.vx<0) p.vx = 0; }
 
   /* ---- checkpoints, stars, beacon ---- */
@@ -1637,7 +1767,19 @@ function updatePlayer(p, dt){
   updateCape(p, dt);
 }
 
-function kill(p){
+function kill(p, fell){
+  if(p.charm){
+    p.charm = false; p.invul = 1.2;
+    for(let i=0;i<14;i++) spark(p.x+p.w/2, p.y+p.h/2, '#B388FF');
+    if(fell){
+      /* no use bouncing in mid-air below the level: set them back on their feet */
+      p.x = p.cp.x; p.y = p.cp.y; p.vx = 0; p.vy = 0;
+    } else {
+      p.vy = -260; p.vx = -p.face*160; p.jumpCut = false;
+    }
+    game.pops.push({x:p.x+p.w/2, y:p.y-10, txt:'ONE LIFE USED!', life:0.9, col:'#B388FF'});
+    return;
+  }
   game.wipes++;
   for(let i=0;i<16;i++) spark(p.x+p.w/2, p.y+p.h/2, i%2 ? '#E63946' : '#FFD23F');
   game.pops.push({x:p.x+p.w/2, y:p.y-6, txt:'OOF!', life:0.8, col:'#E63946'});
@@ -2262,6 +2404,25 @@ function rr(c,x,y,w,h,r,fill,stroke){
   if(stroke){ c.strokeStyle = '#0B0A10'; c.stroke(); }
 }
 
+function applyDance(c, style, t){
+  switch(style){
+    case 'spin':     c.rotate(t*7); break;
+    case 'shimmy':   c.translate(Math.sin(t*13)*6, 0); c.rotate(Math.sin(t*13)*0.13); break;
+    case 'flap':     c.translate(0, -Math.abs(Math.sin(t*11))*11); c.rotate(Math.sin(t*22)*0.07); break;
+    case 'hop':      c.translate(0, -Math.abs(Math.sin(t*9))*15); break;
+    case 'bounce':   c.translate(0, -Math.abs(Math.sin(t*7))*18);
+                     c.scale(1+Math.sin(t*7)*0.07, 1-Math.sin(t*7)*0.07); break;
+    case 'headbang': c.rotate(Math.sin(t*10)*0.24); break;
+    case 'wiggle':   c.rotate(Math.sin(t*15)*0.19); c.translate(Math.sin(t*7)*4,0); break;
+    case 'strut':    c.translate(Math.sin(t*6)*8, -Math.abs(Math.cos(t*6))*5); break;
+    case 'stomp':    c.scale(1+Math.abs(Math.sin(t*6))*0.14, 1-Math.abs(Math.sin(t*6))*0.11); break;
+    case 'sway':     c.rotate(Math.sin(t*4)*0.28); break;
+    case 'wobble':   c.scale(1+Math.sin(t*8)*0.12, 1-Math.sin(t*8)*0.09); break;
+    case 'wag':      c.rotate(Math.sin(t*12)*0.10); c.translate(0, -Math.abs(Math.sin(t*6))*6); break;
+    default:         c.translate(0, -Math.abs(Math.sin(t*7))*8); c.rotate(Math.sin(t*7)*0.09);
+  }
+}
+
 function drawHero(c, p){
   const H = p.H;
 
@@ -2322,6 +2483,7 @@ function drawHero(c, p){
   c.save();
   c.translate(p.x + p.w/2, p.y + p.h);
   c.scale(1/Math.max(0.6,p.squash), p.squash);
+  if(p.dancing > 0) applyDance(c, H.dance, p.danceT);
   c.lineWidth = 3.2; c.strokeStyle = '#0B0A10';
 
   if(p.shell > 0){
@@ -2383,6 +2545,49 @@ function drawHero(c, p){
     for(let i=-1;i<=1;i++){ c.beginPath(); c.moveTo(-6+i*8,-37); c.lineTo(-6+i*8,-15); c.stroke(); }
     c.restore();
   }
+  if(H.neck){
+    c.fillStyle = H.body;
+    rr(c, -6, -64, 12, 34, 5, true, true);
+    c.fillStyle = H.dark;
+    for(let i=0;i<3;i++){ c.beginPath(); c.arc(-1+((i%2)?4:-4), -58+i*11, 2.6, 0, 7); c.fill(); }
+  }
+  if(H.wool){
+    c.fillStyle = H.body;
+    for(const q of [[-12,-32],[-4,-36],[5,-34],[12,-28],[-13,-22],[13,-20],[0,-26]]){
+      c.beginPath(); c.arc(q[0], q[1], 7.5, 0, 7); c.fill();
+      c.lineWidth = 2.4; c.strokeStyle = '#0B0A10'; c.stroke();
+    }
+    c.lineWidth = 3.2;
+  }
+  if(H.fluke){
+    c.save();
+    c.fillStyle = H.body;
+    c.beginPath();
+    c.moveTo(-12,-22);
+    c.quadraticCurveTo(-28,-26, -32,-14);
+    c.lineTo(-24,-18); c.lineTo(-30,-6);
+    c.quadraticCurveTo(-18,-12, -12,-16);
+    c.closePath(); c.fill();
+    c.lineWidth = 3; c.strokeStyle = '#0B0A10'; c.stroke();
+    c.restore();
+  }
+  if(H.key==='dog'){
+    c.save();
+    c.fillStyle = H.body;
+    rr(c, -22, -30, 11, 7, 3.5, true, true);
+    c.restore();
+  }
+  if(H.key==='cat'){
+    c.save();
+    c.fillStyle = H.body;
+    c.beginPath();
+    c.moveTo(-12,-26);
+    c.quadraticCurveTo(-30,-30, -26,-46);
+    c.quadraticCurveTo(-22,-34, -12,-21);
+    c.closePath(); c.fill();
+    c.lineWidth = 3; c.strokeStyle = '#0B0A10'; c.stroke();
+    c.restore();
+  }
   if(H.key==='fox' || H.key==='squirrel'){
     c.save();
     c.fillStyle = H.body;
@@ -2398,7 +2603,7 @@ function drawHero(c, p){
   c.fillStyle = H.limb;
   rr(c, 9, -31 + (p.grounded ? -legSwing*6 : -8), 8, 14, 4, true, true);
 
-  const hy = -46;
+  const hy = H.neck ? -68 : -46;
   if(H.key==='panda'){
     c.fillStyle = H.dark;
     c.beginPath(); c.arc(-8,hy-11,6.5,0,7); c.fill(); c.stroke();
@@ -2427,6 +2632,30 @@ function drawHero(c, p){
     c.fillStyle = H.body;
     c.beginPath(); c.ellipse(-14, hy-2, 8, 11, 0.2, 0, 7); c.fill(); c.stroke();
     c.beginPath(); c.ellipse( 14, hy-2, 8, 11, -0.2, 0, 7); c.fill(); c.stroke();
+  } else if(H.key==='dog'){
+    c.fillStyle = H.dark;
+    rr(c, -16, hy-11, 9, 22, 4.5, true, true);
+    rr(c,   7, hy-11, 9, 22, 4.5, true, true);
+    c.fillStyle = H.body;
+  } else if(H.key==='cat'){
+    c.fillStyle = H.body;
+    c.beginPath(); c.moveTo(-12,hy-5); c.lineTo(-9,hy-21); c.lineTo(-2,hy-8); c.closePath(); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo( 12,hy-5); c.lineTo( 9,hy-21); c.lineTo( 2,hy-8); c.closePath(); c.fill(); c.stroke();
+  } else if(H.key==='sheep'){
+    c.fillStyle = H.dark;
+    rr(c, -17, hy-4, 9, 7, 3, true, true);
+    rr(c,   8, hy-4, 9, 7, 3, true, true);
+  } else if(H.key==='chicken'){
+    c.fillStyle = '#E63946';
+    c.beginPath();
+    c.moveTo(-7, hy-11); c.lineTo(-4, hy-20); c.lineTo(0, hy-12);
+    c.lineTo(4, hy-21); c.lineTo(8, hy-11);
+    c.closePath(); c.fill(); c.stroke();
+  } else if(H.key==='giraffe'){
+    c.fillStyle = H.dark;
+    c.fillRect(-6, hy-18, 3, 9); c.fillRect(4, hy-18, 3, 9);
+    c.beginPath(); c.arc(-4.5, hy-19, 3, 0, 7); c.fill(); c.stroke();
+    c.beginPath(); c.arc(5.5, hy-19, 3, 0, 7); c.fill(); c.stroke();
   }
   c.fillStyle = H.body;
   c.beginPath(); c.arc(0,hy,13,0,7); c.fill(); c.stroke();
@@ -2446,9 +2675,17 @@ function faceDetails(c,H,x,y,sc,p){
     c.beginPath(); c.ellipse(-5,-2,5.4,6.2, 0.25,0,7); c.fill();
     c.beginPath(); c.ellipse( 6,-2,5.4,6.2,-0.25,0,7); c.fill();
   }
-  if(H.key==='penguin'){
+  if(H.key==='penguin' || H.key==='whale'){
     c.fillStyle = H.belly;
     c.beginPath(); c.ellipse(3,1,9,9.5,0,0,7); c.fill();
+  }
+  if(H.key==='sheep'){
+    c.fillStyle = H.dark;
+    c.beginPath(); c.ellipse(2,2,8.5,8,0,0,7); c.fill();
+  }
+  if(H.key==='dog'){
+    c.fillStyle = H.belly;
+    c.beginPath(); c.ellipse(6,4,8,6.5,0,0,7); c.fill();
   }
   if(H.key==='frog'){
     c.fillStyle = H.body; c.lineWidth = 3; c.strokeStyle = '#0B0A10';
@@ -2577,9 +2814,12 @@ function drawHeld(c, id, t){
     c.strokeStyle = 'rgba(11,10,16,.55)'; c.lineWidth = 2;
     for(let i=-24;i<18;i+=12){ c.beginPath(); c.moveTo(-3, i); c.lineTo(3, i); c.stroke(); }
   } else if(id==='pan'){
+    /* the hand grips the handle; the pan itself points forward */
+    c.fillStyle = '#8A5A2B'; rr(c, -15, -3, 23, 6, 3, true, true);
     c.fillStyle = '#2E3442';
-    c.beginPath(); c.arc(0, 0, 12, 0, 7); c.fill(); c.stroke();
-    c.fillStyle = '#8A5A2B'; rr(c, 9, -3, 20, 6, 3, true, true);
+    c.beginPath(); c.arc(19, 0, 11, 0, 7); c.fill(); c.stroke();
+    c.fillStyle = 'rgba(255,255,255,.18)';
+    c.beginPath(); c.arc(19, -2, 7, Math.PI, 0); c.fill();
   } else if(id==='boombox'){
     c.fillStyle = '#4E5666'; rr(c, -16, -8, 32, 18, 3, true, true);
     c.fillStyle = '#0B0A10';
