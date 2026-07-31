@@ -174,6 +174,12 @@
     display:flex; align-items:center; justify-content:center;
   }
   .lvlcard.down .num{background:var(--ice);}
+  .lvlcard.coop .num{background:var(--alarm); color:var(--paper);}
+  .tag2p{
+    display:inline-block; vertical-align:2px; margin-left:6px; padding:2px 6px 1px;
+    background:var(--alarm); color:var(--paper); border:3px solid var(--ink);
+    font-family:var(--display); font-size:11px; letter-spacing:.08em;
+  }
   .lvlcard .lname{font-family:var(--display); text-transform:uppercase; font-size:19px; line-height:1;}
   .lvlcard .lblurb{font-size:11.5px; line-height:1.35; opacity:.78; margin-top:4px;}
   .lvlcard .lbest{
@@ -260,7 +266,7 @@
 
   <div class="screen" id="scLevel">
     <h1 class="selhead" id="lvlHead">Pick your rooftop</h1>
-    <p class="selsub">Number four goes straight down.</p>
+    <p class="selsub" id="selSubLvl">&nbsp;</p>
     <div class="roster" id="levelList" style="grid-template-columns:repeat(auto-fit,minmax(232px,1fr));"></div>
     <div class="row"><button class="btn ghost" id="btnLevelBack" style="font-size:16px;">Change hero</button></div>
     <div class="ver" id="verLevel">version</div>
@@ -328,7 +334,7 @@
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
 
-const VERSION = 'v2.0';
+const VERSION = 'v3.0';
 const FLIP_DUR = 0.78;
 const LEVEL_BLURB = [
   'Rooftop gaps, spikes and one springboard.',
@@ -338,7 +344,12 @@ const LEVEL_BLURB = [
   'The whole skyline, and everything you have learned.',
   'Springboards all the way up, then all the way down.',
   'Deeper than the last drop, and far less forgiving.',
-  'Everything at once. No safety net.'
+  'Everything at once. No safety net.',
+  'Slamming presses and platforms you can jump up through.',
+  'Conveyor belts, presses and blades, all pulling at once.',
+  'One holds the plate, the other walks through. Then swap.',
+  'Three locks. Neither of you gets through alone.',
+  'Holds, crossings, and shoulders to stand on.'
 ];
 
 const cvs = document.getElementById('game');
@@ -411,6 +422,10 @@ const LEVELS = [
   saws:[],
   spikes:[[1300,620,70], [2440,620,80]],
   crates:[[1790,572], [1838,572]],
+  stampers:[],
+  gates:[],
+  plates:[],
+  switches:[],
   checkpoints:[[1770,620], [2400,620]],
   stars:[[770,540], [1575,475], [2910,405]],
   captions:[[80,560,"HIGH ABOVE THE CITY, THE SQUAD BEGINS ITS RUN..."], [1760,560,"CRATES! SOMEONE HAS BEEN BUSY."], [3100,560,"THE BEACON IS IN SIGHT!"]],
@@ -423,6 +438,10 @@ const LEVELS = [
   saws:[],
   spikes:[[1975,660,70], [2860,660,70]],
   crates:[[560,612], [608,612], [3300,612], [3348,612]],
+  stampers:[],
+  gates:[],
+  plates:[],
+  switches:[],
   checkpoints:[[1090,660], [2330,660], [2810,660]],
   stars:[[1540,372], [2850,382], [3290,388]],
   captions:[[80,600,"THE ROOFTOPS GIVE WAY TO A MAZE OF VENTS."], [1100,600,"SMALL ENOUGH TO CRAWL? THEN CRAWL."], [3260,600,"ALMOST THROUGH..."]],
@@ -435,6 +454,10 @@ const LEVELS = [
   saws:[[1330,600,26,1330,470,110], [2660,700,30,2900,700,150]],
   spikes:[[2190,680,90], [3390,680,60]],
   crates:[[2900,632], [2948,632]],
+  stampers:[],
+  gates:[],
+  plates:[],
+  switches:[],
   checkpoints:[[1230,680], [2140,680], [2780,680]],
   stars:[[905,575], [1665,475], [3130,555]],
   captions:[[80,620,"THE OLD ICE WORKS. NOTHING HERE HOLDS STILL."], [1480,470,"MIND THE BLADES."], [3580,620,"ONE LAST STRETCH."]],
@@ -447,6 +470,10 @@ const LEVELS = [
   saws:[[200,540,28,820,540,170], [820,970,28,200,970,180], [200,1810,26,820,1810,190], [820,2470,28,200,2470,175]],
   spikes:[[530,430,80], [400,1080,80], [660,1920,80], [480,2360,80]],
   crates:[[380,2962], [428,2962]],
+  stampers:[],
+  gates:[],
+  plates:[],
+  switches:[],
   checkpoints:[[800,430], [300,650], [300,1500], [500,1920], [500,2360]],
   stars:[[700,380], [560,1245], [820,2740]],
   captions:[[170,150,"NO WAY OUT BUT DOWN."], [420,470,"THE SHAFT GOES ON, AND ON..."], [200,2600,"THE BOTTOM AT LAST!"]],
@@ -459,6 +486,10 @@ const LEVELS = [
   saws:[[1520,700,30,1820,700,160], [2660,545,26,2660,415,120], [3520,645,28,3700,645,145]],
   spikes:[[560,740,90], [3950,740,70]],
   crates:[[2985,692], [3033,692], [2985,644]],
+  stampers:[],
+  gates:[],
+  plates:[],
+  switches:[],
   checkpoints:[[990,740], [2150,740], [2960,740], [3900,740]],
   stars:[[1700,467], [2620,440], [3820,515]],
   captions:[[80,680,"THE WHOLE SKYLINE. EVERYTHING THEY HAVE LEARNED."], [2100,680,"ONE MORE VENT, FOR OLD TIMES SAKE."], [4160,680,"THE FINAL LEAP!"]],
@@ -471,6 +502,10 @@ const LEVELS = [
   saws:[[1700,560,26,1900,560,150], [2300,520,24,2300,300,110]],
   spikes:[[1100,660,60], [3320,1160,90]],
   crates:[[600,852], [648,852]],
+  stampers:[],
+  gates:[],
+  plates:[],
+  switches:[],
   checkpoints:[[620,900], [1520,430], [2520,620], [3040,1060]],
   stars:[[700,850], [1980,210], [2800,790]],
   captions:[[80,1080,"SPRINGBOARDS! THE FASTEST WAY UP IS ALSO THE SILLIEST."], [1500,380,"TOP OF THE WORLD."], [3260,1080,"AND BACK DOWN AGAIN."]],
@@ -483,6 +518,10 @@ const LEVELS = [
   saws:[[240,540,28,820,540,175], [240,1795,26,820,1795,195], [820,2430,28,300,2430,180]],
   spikes:[[600,430,80], [640,1900,80]],
   crates:[[400,3322], [448,3322]],
+  stampers:[],
+  gates:[],
+  plates:[],
+  switches:[],
   checkpoints:[[860,430], [300,640], [300,1480], [560,2110], [300,2950]],
   stars:[[820,380], [230,1430], [880,2690]],
   captions:[[190,150,"DEEPER THIS TIME. MUCH DEEPER."], [500,1600,"HALFWAY. PROBABLY."], [300,3300,"SOLID GROUND!"]],
@@ -495,10 +534,94 @@ const LEVELS = [
   saws:[[1000,900,28,1140,900,150], [2220,840,30,2420,840,160], [3760,660,26,3760,470,110], [4560,880,26,4700,880,140]],
   spikes:[[570,840,90], [4800,840,90]],
   crates:[[2960,792], [3008,792], [2960,744]],
+  stampers:[],
+  gates:[],
+  plates:[],
+  switches:[],
   checkpoints:[[1070,840], [2180,840], [2900,840], [4180,840], [4740,840]],
   stars:[[1740,512], [2790,665], [3760,532]],
   captions:[[80,760,"THE LAST PAGE. NO SAFETY NET."], [2200,760,"KEEP MOVING!"], [4980,760,"THE END... FOR NOW."]],
   goal:[5140,776]
+},
+{
+  name:"Press Room", w:3700, h:900, spawn:[60,700],
+  plats:[[-40,780,400,200,"solid"], [470,780,300,200,"solid"], [600,690,130,20,"oneway"], [880,700,150,20,"solid"], [1150,780,320,200,"solid"], [1250,690,140,20,"oneway"], [1580,720,140,20,"solid"], [1840,780,300,200,"solid"], [1960,690,150,20,"oneway"], [2250,690,130,20,"solid"], [2480,780,280,200,"solid"], [2600,690,140,20,"oneway"], [2870,700,140,20,"solid"], [3100,780,600,200,"solid"]],
+  movers:[[1470,600,120,20,1720,600,110], [2760,620,120,20,2960,620,120]],
+  saws:[],
+  spikes:[[1250,780,80], [2560,780,80]],
+  crates:[[3180,732], [3228,732]],
+  stampers:[[560,500,110,90,190,2.4,0.0], [1240,460,110,90,230,2.8,0.35], [1900,480,120,90,210,2.2,0.6], [2520,470,110,90,220,2.6,0.15], [3240,500,120,90,190,3.0,0.5]],
+  gates:[[2050,620,26,160,"b"]],
+  plates:[],
+  switches:[[1900,780,"b",7]],
+  checkpoints:[[1150,780], [1840,780], [2480,780], [3100,780]],
+  stars:[[660,620], [2010,620], [3400,700]],
+  captions:[[80,700,"THE PRESS ROOM. MIND YOUR HEAD."], [1880,700,"PULL THE LEVER, THEN RUN!"], [3140,700,"OUT THE OTHER SIDE."]],
+  goal:[3540,716]
+},
+{
+  name:"Clockwork", w:4300, h:1100, spawn:[60,900],
+  plats:[[-40,980,380,200,"solid"], [450,980,260,200,"convR"], [820,900,160,20,"solid"], [1080,980,240,200,"convL"], [1180,890,140,20,"oneway"], [1420,820,140,20,"solid"], [1660,900,95,22,"bounce"], [1800,680,150,20,"solid"], [2050,600,140,20,"ice"], [2290,700,150,20,"solid"], [2540,980,280,200,"solid"], [2660,890,140,20,"oneway"], [2920,900,130,20,"solid"], [3160,980,240,200,"convR"], [3260,900,130,20,"solid"], [3520,830,130,20,"solid"], [3760,880,140,20,"ice"], [4000,980,300,200,"solid"]],
+  movers:[[1960,860,120,20,2240,860,125], [2980,700,120,20,2980,520,95], [3620,960,130,20,3900,960,140]],
+  saws:[[900,940,26,1060,940,155], [2600,940,28,2800,940,170], [3300,700,26,3300,520,105]],
+  spikes:[[2620,980,90], [4060,980,90]],
+  crates:[[2580,932], [2628,932]],
+  stampers:[[1400,620,110,90,180,2.5,0.2], [2280,460,110,90,220,2.9,0.55], [3480,600,120,90,170,2.3,0.8]],
+  gates:[[1560,720,26,110,"a"]],
+  plates:[],
+  switches:[[1140,980,"a",10]],
+  checkpoints:[[1080,980], [2540,980], [3160,980], [4000,980]],
+  stars:[[1860,630], [2960,470], [3580,760]],
+  captions:[[80,900,"CONVEYORS, PRESSES AND BLADES. ALL AT ONCE."], [1700,850,"UP AND OVER."], [4040,900,"MADE IT."]],
+  goal:[4160,916]
+},
+{
+  name:"Two Capes", w:2620, h:820, spawn:[60,620], coop:true,
+  plats:[[-40,700,520,160,"solid"], [506,700,600,160,"solid"], [1240,700,480,160,"solid"], [1850,700,300,160,"solid"], [2260,700,360,160,"solid"]],
+  movers:[],
+  saws:[],
+  spikes:[[1960,700,80]],
+  crates:[[600,652], [648,652]],
+  stampers:[],
+  gates:[[480,540,26,160,"a"], [1500,540,26,160,"b"]],
+  plates:[[340,700,90,"a"], [560,700,90,"a"], [1330,700,90,"b"], [1560,700,90,"b"]],
+  switches:[],
+  checkpoints:[[560,700], [1300,700], [2280,700]],
+  stars:[[760,640], [1420,640], [2340,640]],
+  captions:[[80,620,"TWO CAPES. ONE STANDS ON THE PLATE, THE OTHER WALKS THROUGH."], [1300,620,"NOW SWAP OVER. STUCK? PAUSE AND RESTART."], [2290,620,"TOGETHER, OR NOT AT ALL."]],
+  goal:[2440,636]
+},
+{
+  name:"The Lock", w:3260, h:950, spawn:[60,700], coop:true,
+  plats:[[-40,780,460,170,"solid"], [446,780,520,170,"solid"], [1090,780,380,170,"solid"], [1496,780,420,170,"solid"], [2040,780,300,170,"solid"], [2366,780,894,170,"solid"], [1200,690,90,20,"oneway"]],
+  movers:[[1930,700,110,20,2040,700,115]],
+  saws:[[1180,740,26,1380,740,160]],
+  spikes:[[700,780,80], [2600,780,90]],
+  crates:[[1560,732], [1608,732]],
+  stampers:[[1700,560,110,90,150,2.6,0.3], [2800,560,110,90,160,2.9,0.7]],
+  gates:[[420,620,26,160,"a"], [1470,600,26,180,"b"], [2340,560,26,220,"c"]],
+  plates:[[280,780,90,"a"], [500,780,90,"a"], [1150,780,90,"b"], [1560,780,90,"b"], [2100,780,90,"c"], [2420,780,90,"c"]],
+  switches:[],
+  checkpoints:[[500,780], [1540,780], [2420,780]],
+  stars:[[860,720], [1700,720], [3000,720]],
+  captions:[[80,700,"THREE LOCKS. NEITHER OF YOU GETS THROUGH ALONE."], [1540,700,"MIND THE PRESS WHILE YOU WAIT."], [2440,700,"LAST ONE. HOLD IT STEADY."]],
+  goal:[3080,716]
+},
+{
+  name:"Hand in Hand", w:3800, h:1000, spawn:[60,760], coop:true,
+  plats:[[-40,840,480,160,"solid"], [466,840,460,160,"solid"], [1010,840,300,160,"solid"], [1120,750,130,20,"oneway"], [1420,840,420,160,"solid"], [1866,840,380,160,"solid"], [2330,840,300,160,"solid"], [2440,750,130,20,"solid"], [2716,840,340,160,"solid"], [3140,840,660,160,"solid"]],
+  movers:[[1330,760,110,20,1420,760,110], [2640,740,110,20,2740,740,115]],
+  saws:[[1480,800,26,1700,800,165], [3220,700,26,3220,540,110]],
+  spikes:[[560,840,90], [3400,840,90]],
+  crates:[[1960,792], [2008,792]],
+  stampers:[[1150,600,110,90,170,2.4,0.2], [2100,590,120,90,180,2.8,0.55], [3300,610,110,90,160,2.5,0.85]],
+  gates:[[440,680,26,160,"a"], [1840,660,26,180,"b"], [2690,620,26,220,"c"]],
+  plates:[[300,840,90,"a"], [520,840,90,"a"], [1500,840,90,"b"], [1920,840,90,"b"], [2360,840,90,"c"], [2780,840,90,"c"]],
+  switches:[],
+  checkpoints:[[520,840], [1480,840], [1920,840], [2780,840]],
+  stars:[[1180,690], [2500,690], [3400,780]],
+  captions:[[80,760,"HAND IN HAND. YOU CAN STAND ON EACH OTHER, YOU KNOW."], [1920,760,"HOLD, CROSS, SWAP. AGAIN."], [3180,760,"THE LAST PAGE OF ALL."]],
+  goal:[3620,776]
 },
 ];
 
@@ -517,6 +640,12 @@ function buildLevel(i){
     checkpoints:L.checkpoints.map(c=>({x:c[0], y:c[1], hit:false})),
     stars:L.stars.map(s=>({x:s[0], y:s[1], got:false, t:Math.random()*6})),
     captions:(L.captions||[]).map(c=>({x:c[0], y:c[1], txt:c[2], fired:false})),
+    gates:(L.gates||[]).map(g=>({x:g[0], y:g[1], w:g[2], h:g[3], id:g[4], t:'gate', open:false, o:0})),
+    plates:(L.plates||[]).map(q=>({x:q[0], y:q[1], w:q[2], id:q[3], down:false, press:0})),
+    switches:(L.switches||[]).map(q=>({x:q[0], y:q[1], id:q[2], secs:q[3], timer:0})),
+    stampers:(L.stampers||[]).map(q=>({x:q[0], ay:q[1], w:q[2], h:q[3],
+                                       travel:q[4], period:q[5], phase:q[6]||0, y:q[1], down:0})),
+    coop:!!L.coop,
     goal:{x:L.goal[0], y:L.goal[1], w:46, h:64}
   };
 }
@@ -577,7 +706,7 @@ function makePlayer(heroKey, idx){
     low:false, roll:0, rollCd:0, slide:false, slidePrev:false, twin:false, glide:false,
     shell:0, shellCd:0, cling:0, clingDir:0, rideMover:null,
     animT:0, squash:1, invul:0, done:false, rank:0, offT:0, stars:0,
-    cp:{x:0,y:0}, cpRef:null, cape:[]
+    cp:{x:0,y:0}, cpRef:null, belt:0, onHero:null, cape:[]
   };
 }
 
@@ -660,18 +789,22 @@ function openLevelSelect(){
   const list = $('levelList');
   list.innerHTML = '';
   LEVELS.forEach((L,i)=>{
+    if(L.coop && game.nPlayers !== 2) return;      /* co-op pages need a partner */
     const best = game.bests['L'+i+'P'+game.nPlayers];
     const card = document.createElement('div');
-    card.className = 'lvlcard' + (L.h > L.w ? ' down' : '');
+    card.className = 'lvlcard' + (L.h > L.w ? ' down' : '') + (L.coop ? ' coop' : '');
     card.innerHTML =
       '<div class="num">'+(i+1)+'</div>'+
-      '<div class="lname">'+L.name+'</div>'+
+      '<div class="lname">'+L.name+(L.coop ? ' <span class="tag2p">2P ONLY</span>' : '')+'</div>'+
       '<div class="lblurb">'+(LEVEL_BLURB[i]||'')+'</div>'+
       '<div class="lbest">'+(best!==undefined ? 'best '+best.toFixed(1)+'"' : 'not run yet')+'</div>';
     card.onclick = ()=>startLevel(i);
     list.appendChild(card);
   });
-  $('lvlHead').textContent = game.nPlayers===2 ? 'Pick your rooftop to race' : 'Pick your rooftop';
+  $('lvlHead').textContent = game.nPlayers===2 ? 'Pick your page' : 'Pick your page';
+  $('selSubLvl').textContent = game.nPlayers===2
+    ? 'Pages 11 to 13 need both of you. The rest are a race.'
+    : 'Pages 4 and 7 head straight down. Three more unlock with a second player.';
   game.state='level'; show('level');
 }
 function layoutPads(two){
@@ -695,6 +828,7 @@ function startLevel(i){
     p.roll=0; p.rollCd=0; p.slide=false; p.slidePrev=false; p.shell=0; p.shellCd=0;
     p.twin=false; p.glide=false; p.cling=0; p.invul=0.6; p.offT=0;
     p.low=false; p.h=PH; p.rideMover=null; p.grounded=false; p.groundType='solid';
+    p.belt=0; p.onHero=null;
     p.cp = {x:p.x, y:p.y}; p.cpRef = null;
     p.cape = []; for(let k=0;k<7;k++) p.cape.push({x:p.x, y:p.y});
   });
@@ -717,7 +851,10 @@ function finishLevel(){
   const L = game.lvl, t = game.time;
   const bk = 'L'+game.li+'P'+game.nPlayers;
   if(game.bests[bk]===undefined || t < game.bests[bk]) game.bests[bk] = t;
-  if(game.nPlayers===2 && game.winner){
+  if(L.coop){
+    $('endTitle').textContent = L.name + ' cleared together';
+    $('endSub').textContent = 'Both capes made it to the beacon.';
+  } else if(game.nPlayers===2 && game.winner){
     const loser = game.players.find(p=>p!==game.winner);
     $('endTitle').textContent = game.winner.H.alias + ' wins';
     $('endSub').textContent = game.winner.H.name+' beat '+loser.H.name+' to the beacon on '+L.name+'.';
@@ -738,6 +875,7 @@ function solidsAt(){
   for(const p of L.plats) if(!p.gone) out.push(p);
   for(const m of L.movers) out.push(m);
   for(const c of L.crates) if(!c.gone) out.push(c);
+  for(const g of L.gates) if(!g.open) out.push(g);
   return out;
 }
 function overlap(a,b){
@@ -745,7 +883,10 @@ function overlap(a,b){
 }
 function boxFree(x,y,w,h){
   const box = {x,y,w,h};
-  for(const s of solidsAt()) if(overlap(box,s)) return false;
+  for(const s of solidsAt()){
+    if(s.t === 'oneway') continue;          /* you can always rise through these */
+    if(overlap(box,s)) return false;
+  }
   return true;
 }
 
@@ -784,6 +925,49 @@ function update(dt){
   }
   for(const s of L.stars) s.t += dt*3;
 
+  /* stampers: heavy blocks that slam down on a cycle */
+  for(const q of L.stampers){
+    q.phase += dt/q.period;
+    const u = q.phase % 1;
+    /* quick slam, slow lift, with a pause at each end */
+    let k;
+    if(u < 0.12)      k = u/0.12;                 // falling
+    else if(u < 0.42) k = 1;                      // held down
+    else if(u < 0.85) k = 1 - (u-0.42)/0.43;      // rising
+    else              k = 0;                      // held up
+    q.down = k;
+    q.y = q.ay + q.travel*k;
+  }
+
+  /* pressure plates, timed switches and the gates they drive */
+  for(const q of L.plates){
+    const was = q.down;
+    q.down = game.players.some(pl => !pl.done &&
+      pl.x + pl.w > q.x + 3 && pl.x < q.x + q.w - 3 &&
+      Math.abs((pl.y + pl.h) - q.y) < 10);
+    if(q.down && !was){ for(let i=0;i<6;i++) spark(q.x+q.w/2, q.y-6, '#7FE3F0'); }
+    q.press += ((q.down?1:0) - q.press) * Math.min(1, dt*14);
+  }
+  for(const q of L.switches){
+    if(q.timer > 0) q.timer -= dt;
+    for(const pl of game.players){
+      if(pl.done) continue;
+      if(Math.abs(pl.x + pl.w/2 - q.x) < 30 && Math.abs((pl.y + pl.h) - q.y) < 54){
+        if(q.timer <= 0){
+          game.pops.push({x:q.x, y:q.y-70, txt:'CLUNK!', life:0.7, col:'#FFD23F'});
+          for(let i=0;i<8;i++) spark(q.x, q.y-40, '#FFD23F');
+        }
+        q.timer = q.secs;
+      }
+    }
+  }
+  for(const g of L.gates){
+    const held = L.plates.some(q => q.id===g.id && q.down) ||
+                 L.switches.some(q => q.id===g.id && q.timer > 0);
+    g.open = held;
+    g.o += ((held?1:0) - g.o) * Math.min(1, dt*9);
+  }
+
   for(const p of game.players) updatePlayer(p, dt);
 
   for(let i=game.fx.length-1;i>=0;i--){
@@ -799,8 +983,11 @@ function update(dt){
   updateCamera(dt);
   updateHUD();
 
-  if(game.nPlayers===2){ if(game.winner) finishLevel(); }
-  else if(game.players[0].done) finishLevel();
+  if(L.coop){
+    if(game.players.every(p=>p.done)) finishLevel();
+  } else if(game.nPlayers===2){
+    if(game.winner) finishLevel();
+  } else if(game.players[0].done) finishLevel();
 }
 
 function updatePlayer(p, dt){
@@ -896,10 +1083,13 @@ function updatePlayer(p, dt){
   const solids = solidsAt();
   if(p.rideMover){ p.x += p.rideMover.x - p.rideMover.px; p.y += p.rideMover.y - p.rideMover.py; }
   p.rideMover = null;
+  if(p.onHero) p.x += p.onHero.vx*dt;               /* ride your partner's shoulders */
 
   p.x += p.vx*dt;
+  if(p.belt) p.x += p.belt*dt;
   let touchWall = 0;
   for(const s of solids){
+    if(s.t === 'oneway') continue;                 /* walk straight through sideways */
     if(s.gone || !overlap(p,s)) continue;
     if(s.crate && (rolling || p.shell>0)){ s.gone = true; smash(s); continue; }
     if(p.vx > 0){ p.x = s.x - p.w; touchWall = 1; }
@@ -914,14 +1104,29 @@ function updatePlayer(p, dt){
     p.vy = Math.min(p.vy, 46);
   }
 
+  const prevFeet = p.y + p.h;
   p.y += p.vy*dt;
-  p.grounded = false; p.groundType = 'solid';
+  p.grounded = false; p.groundType = 'solid'; p.belt = 0; p.onHero = null;
+
+  /* a partner you can stand on: a boost that only exists with two players */
+  for(const o of game.players){
+    if(o === p || o.done || p.vy <= 0) continue;
+    if(prevFeet > o.y + 4) continue;                       /* must come from above */
+    if(overlap(p, {x:o.x+2, y:o.y, w:o.w-4, h:o.h})){
+      p.y = o.y - p.h; p.vy = 0; p.grounded = true; p.onHero = o;
+      if(!p.wasGrounded){ p.squash = 0.85; puff(p,3); }
+    }
+  }
+
   for(const s of solids){
     if(s.gone || !overlap(p,s)) continue;
+    if(s.t === 'oneway' && !(p.vy > 0 && prevFeet <= s.y + 3)) continue;
     if(s.crate && (rolling || p.shell>0)){ s.gone = true; smash(s); continue; }
     if(p.vy > 0){
       p.y = s.y - p.h; p.vy = 0; p.grounded = true; p.groundType = s.t;
       if(s.mover) p.rideMover = s;
+      if(s.t === 'convR') p.belt = 130;
+      if(s.t === 'convL') p.belt = -130;
       if(s.t==='crumble' && s.fallT<0) s.fallT = 0.45;
       if(s.t==='bounce'){ p.vy = BOUNCE_V; p.grounded=false; p.squash=1.3; puff(p,8); pop(p,'BOING!'); }
     } else if(p.vy < 0){
@@ -955,6 +1160,9 @@ function updatePlayer(p, dt){
       const cx = Math.max(p.x, Math.min(s.x, p.x+p.w));
       const cy = Math.max(p.y, Math.min(s.y, p.y+p.h));
       if(Math.hypot(s.x-cx, s.y-cy) < s.r-3){ kill(p); return; }
+    }
+    for(const q of L.stampers){
+      if(overlap(p, {x:q.x+2, y:q.y, w:q.w-4, h:q.h})){ kill(p); return; }
     }
   }
   if(p.y > L.h + 220){ kill(p); return; }
@@ -1000,7 +1208,7 @@ function kill(p){
   game.pops.push({x:p.x+p.w/2, y:p.y-6, txt:'OOF!', life:0.8, col:'#E63946'});
   p.x = p.cp.x; p.y = p.cp.y; p.vx=0; p.vy=0;
   p.invul=1.0; p.roll=0; p.slide=false; p.shell=0; p.cling=0; p.twin=false;
-  p.low=false; p.h=PH; p.rideMover=null;
+  p.low=false; p.h=PH; p.rideMover=null; p.belt=0; p.onHero=null;
 }
 function smash(c){
   for(let i=0;i<14;i++) spark(c.x+24, c.y+24, i%3 ? '#C98A4B' : '#8A5A2B');
@@ -1046,7 +1254,7 @@ function updateCamera(dt){
   if(ps.length>1){
     const zw = (cssW/baseScale)/((maxx-minx)+300);
     const zh = VIEW_H/((maxy-miny)+240);
-    tz = Math.max(0.52, Math.min(1.05, Math.min(zw,zh)));
+    tz = Math.max(L.coop ? 0.40 : 0.52, Math.min(1.05, Math.min(zw,zh)));
   }
   cam.z += (tz-cam.z)*Math.min(1, dt*4);
   cam.x += (tcx-cam.x)*Math.min(1, dt*7);
@@ -1061,6 +1269,9 @@ function updateCamera(dt){
     const leader = ps.reduce((a,b)=>goalDist(a) < goalDist(b) ? a : b);
     for(const p of ps){
       if(p===leader || p.done){ p.offT=0; continue; }
+      /* never teleport someone who is holding a plate open for their partner */
+      if(L.plates.some(q=>q.down && p.x+p.w>q.x && p.x<q.x+q.w &&
+                          Math.abs((p.y+p.h)-q.y)<10)){ p.offT=0; continue; }
       const off = Math.abs(p.x-cam.x) > halfW+40 || Math.abs(p.y-cam.y) > halfH+60;
       p.offT = off ? p.offT+dt : 0;
       if(p.offT > 0.9){
@@ -1143,6 +1354,10 @@ function render(){
   for(const c of L.checkpoints) if(vis({x:c.x-4, y:c.y-58, w:44, h:64})) drawFlag(c);
   for(const st of L.stars) if(!st.got && vis({x:st.x-18, y:st.y-18, w:36, h:36})) drawStar(st);
   for(const sw of L.saws) if(vis({x:sw.x-sw.r, y:sw.y-sw.r, w:sw.r*2, h:sw.r*2})) drawSaw(sw);
+  for(const g of L.gates) if(vis(g)) drawGate(g);
+  for(const q of L.plates) if(vis({x:q.x, y:q.y-12, w:q.w, h:14})) drawPlate(q);
+  for(const q of L.switches) if(vis({x:q.x-16, y:q.y-60, w:32, h:64})) drawSwitch(q);
+  for(const q of L.stampers) if(vis({x:q.x, y:q.ay, w:q.w, h:q.h+q.travel})) drawStamper(q);
   for(const p of game.players) drawHero(ctx, p);
 
   for(const f of game.fx){
@@ -1329,6 +1544,24 @@ function drawPlat(p){
     ctx.fillStyle = '#FFD23F';
     for(let i=0;i<p.w-8;i+=16) ctx.fillRect(p.x+5+i,p.y+5,8,p.h-10);
     ctx.lineWidth = 3; ctx.strokeStyle = '#0B0A10'; ctx.strokeRect(p.x,p.y,p.w,p.h);
+  } else if(p.t==='oneway'){
+    ctx.fillStyle = '#C9C2E0'; ctx.fillRect(p.x, p.y, p.w, 7);
+    ctx.lineWidth = 3; ctx.strokeStyle = '#0B0A10'; ctx.strokeRect(p.x, p.y, p.w, 7);
+    ctx.strokeStyle = 'rgba(11,10,16,.45)'; ctx.lineWidth = 2;
+    for(let i=8;i<p.w-6;i+=18){
+      ctx.beginPath();
+      ctx.moveTo(p.x+i, p.y+15); ctx.lineTo(p.x+i+5, p.y+9); ctx.lineTo(p.x+i+10, p.y+15);
+      ctx.stroke();
+    }
+  } else if(p.t==='convR' || p.t==='convL'){
+    inkRect(p.x,p.y,p.w,p.h,'#5A5273');
+    const dir = p.t==='convR' ? 1 : -1;
+    const roll = (performance.now()/1000*130*dir) % 22;
+    ctx.fillStyle = '#FFD23F';
+    ctx.save(); ctx.beginPath(); ctx.rect(p.x,p.y,p.w,p.h); ctx.clip();
+    for(let i=-22;i<p.w+22;i+=22) ctx.fillRect(p.x+i+roll, p.y+4, 11, 5);
+    ctx.restore();
+    ctx.lineWidth = 3.4; ctx.strokeStyle = '#0B0A10'; ctx.strokeRect(p.x,p.y,p.w,p.h);
   } else if(p.t==='wall'){
     ctx.fillStyle = '#2B1F46'; ctx.fillRect(p.x,p.y,p.w,p.h);
     ctx.strokeStyle = 'rgba(11,10,16,.55)'; ctx.lineWidth = 2;
@@ -1391,6 +1624,71 @@ function drawSaw(s){
   ctx.fillStyle = '#E63946'; ctx.fill(); ctx.stroke();
   ctx.restore();
 }
+const GATE_COL = {a:'#7FE3F0', b:'#E8552B', c:'#9BE85A'};
+function gateColour(id){ return GATE_COL[id] || '#FFD23F'; }
+
+function drawGate(g){
+  const col = gateColour(g.id);
+  // the socket it retracts into, always visible so the puzzle reads
+  ctx.strokeStyle = 'rgba(11,10,16,.4)'; ctx.lineWidth = 2;
+  ctx.setLineDash([7,6]); ctx.strokeRect(g.x, g.y, g.w, g.h); ctx.setLineDash([]);
+  const shown = 1 - g.o;
+  if(shown < 0.03) return;
+  const h = g.h * shown;
+  inkRect(g.x, g.y, g.w, h, col);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(g.x, g.y, g.w, h); ctx.clip();
+  ctx.strokeStyle = 'rgba(11,10,16,.55)'; ctx.lineWidth = 7;
+  for(let i=-g.h; i<g.w+g.h; i+=20){
+    ctx.beginPath(); ctx.moveTo(g.x+i, g.y); ctx.lineTo(g.x+i-g.h, g.y+g.h); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.lineWidth = 3.4; ctx.strokeStyle = '#0B0A10'; ctx.strokeRect(g.x, g.y, g.w, h);
+}
+
+function drawPlate(q){
+  const col = gateColour(q.id);
+  const drop = q.press * 5;
+  inkRect(q.x, q.y - 12 + drop, q.w, 12 - drop, col);
+  ctx.fillStyle = 'rgba(11,10,16,.35)';
+  for(let i=6;i<q.w-6;i+=14) ctx.fillRect(q.x+i, q.y-9+drop, 6, 3);
+  // a hint of the link, so it is obvious this opens something
+  ctx.strokeStyle = col; ctx.globalAlpha = .5; ctx.lineWidth = 2;
+  ctx.setLineDash([5,7]);
+  const g = game.lvl.gates.find(gg=>gg.id===q.id);
+  if(g){ ctx.beginPath(); ctx.moveTo(q.x+q.w/2, q.y-14); ctx.lineTo(g.x+g.w/2, g.y+g.h); ctx.stroke(); }
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+}
+
+function drawSwitch(q){
+  const col = gateColour(q.id), on = q.timer > 0;
+  ctx.fillStyle = '#0B0A10'; ctx.fillRect(q.x-3, q.y-46, 6, 48);
+  ctx.save(); ctx.translate(q.x, q.y-50); ctx.rotate(on ? 0.5 : -0.5);
+  inkRect(-13, -8, 26, 16, on ? col : '#6B6480');
+  ctx.restore();
+  if(on){
+    ctx.font = '700 15px Impact, "Arial Black", sans-serif';
+    ctx.textAlign = 'center'; ctx.fillStyle = col;
+    ctx.fillText(Math.ceil(q.timer)+'', q.x, q.y-62);
+  }
+}
+
+function drawStamper(q){
+  // the shaft it travels in
+  ctx.strokeStyle = 'rgba(11,10,16,.32)'; ctx.lineWidth = 2;
+  ctx.setLineDash([6,7]);
+  ctx.strokeRect(q.x, q.ay, q.w, q.h + q.travel);
+  ctx.setLineDash([]);
+  // danger band on the floor beneath
+  ctx.fillStyle = 'rgba(230,57,70,' + (0.10 + q.down*0.3).toFixed(2) + ')';
+  ctx.fillRect(q.x, q.ay + q.h + q.travel - 8, q.w, 8);
+  inkRect(q.x, q.y, q.w, q.h, '#4A4560', 4);
+  ctx.fillStyle = '#E63946';
+  for(let i=4;i<q.w-10;i+=22) ctx.fillRect(q.x+i, q.y+q.h-11, 12, 7);
+  ctx.fillStyle = '#8E88A8'; ctx.fillRect(q.x+5, q.y+5, q.w-10, 5);
+  ctx.lineWidth = 4; ctx.strokeStyle = '#0B0A10'; ctx.strokeRect(q.x, q.y, q.w, q.h);
+}
+
 function drawFlag(c){
   ctx.fillStyle = '#0B0A10'; ctx.fillRect(c.x-3, c.y-58, 6, 62);
   ctx.beginPath();
