@@ -344,8 +344,9 @@ const HERO_ORDER = ['panda','penguin','fox','bat','frog','tortoise'];
 
 /* ---------------------------------------------------------- physics */
 const GRAV=1560, MAX_FALL=940;
-const RUN_ACC=2000, RUN_MAX=262, FRIC_GROUND=1900, FRIC_AIR=320, FRIC_ICE=130;
+const RUN_ACC=1710, RUN_MAX=224, FRIC_GROUND=1625, FRIC_AIR=274, FRIC_ICE=111;
 const JUMP_V=-566, JUMP_CUT=-190, BOUNCE_V=-905;
+const ROLL_V=400, SLIDE_CAP=340, WALLJUMP_VX=280;
 const COYOTE=0.09, JUMP_BUF=0.12;
 const PW=32, PH=44, PH_LOW=21;
 
@@ -692,11 +693,11 @@ function updatePlayer(p, dt){
   p.slide = false; p.glide = false;
   if(H==='panda'){
     if(st.powerP && p.grounded && p.rollCd<=0 && p.roll<=0){
-      p.roll=0.42; p.rollCd=0.62; p.vx = p.face*470; pop(p,'ROLL!'); puff(p,8);
+      p.roll=0.42; p.rollCd=0.62; p.vx = p.face*ROLL_V; pop(p,'ROLL!'); puff(p,8);
     }
   } else if(H==='penguin'){
     if(st.power && p.grounded){
-      if(!p.slidePrev){ p.vx += p.face*90; pop(p,'SLIDE!'); puff(p,5); }
+      if(!p.slidePrev){ p.vx += p.face*76; pop(p,'SLIDE!'); puff(p,5); }
       p.slide = true;
     }
   } else if(H==='fox'){
@@ -729,19 +730,19 @@ function updatePlayer(p, dt){
   const onIce = p.groundType==='ice';
 
   if(rolling){
-    p.vx = p.face*470;
+    p.vx = p.face*ROLL_V;
   } else if(p.slide){
     if(dir!==0) p.vx += dir*RUN_ACC*0.35*dt;
     if(Math.abs(p.vx) > 4) p.vx -= Math.sign(p.vx)*FRIC_ICE*0.55*dt; else p.vx = 0;
-    p.vx = Math.max(-400, Math.min(400, p.vx));
+    p.vx = Math.max(-SLIDE_CAP, Math.min(SLIDE_CAP, p.vx));
   } else if(dir!==0){
     p.vx += dir*(p.grounded ? RUN_ACC : RUN_ACC*0.72)*dt;
-    if(Math.abs(p.vx) > RUN_MAX) p.vx = Math.sign(p.vx)*Math.max(RUN_MAX, Math.abs(p.vx)-1400*dt);
+    if(Math.abs(p.vx) > RUN_MAX) p.vx = Math.sign(p.vx)*Math.max(RUN_MAX, Math.abs(p.vx)-1200*dt);
   } else {
     const f = p.grounded ? (onIce?FRIC_ICE:FRIC_GROUND) : FRIC_AIR;
     if(Math.abs(p.vx) > f*dt) p.vx -= Math.sign(p.vx)*f*dt; else p.vx = 0;
   }
-  if(p.glide) p.vx += p.face*70*dt;
+  if(p.glide) p.vx += p.face*60*dt;
 
   /* ---- jump ---- */
   if(st.jumpP){ p.buf = JUMP_BUF; st.jumpP = false; }
@@ -749,7 +750,7 @@ function updatePlayer(p, dt){
   if(p.coyote>0) p.coyote -= dt;
 
   if(p.buf>0 && p.cling>0 && H==='frog'){
-    p.vy = JUMP_V*1.02; p.vx = -p.clingDir*330; p.face = -p.clingDir;
+    p.vy = JUMP_V*1.02; p.vx = -p.clingDir*WALLJUMP_VX; p.face = -p.clingDir;
     p.cling = 0; p.buf = 0; puff(p,6); pop(p,'WALL HOP!');
   } else if(p.buf>0 && (p.grounded || p.coyote>0)){
     p.vy = JUMP_V; p.grounded=false; p.coyote=0; p.buf=0; p.squash=1.16; puff(p,4);
@@ -845,7 +846,7 @@ function updatePlayer(p, dt){
     for(let i=0;i<30;i++) spark(G.x+G.w/2, G.y+20, i%2 ? '#FFD23F' : '#7FE3F0');
   }
 
-  p.animT += dt*(1 + Math.abs(p.vx)/120);
+  p.animT += dt*(1 + Math.abs(p.vx)/104);
   updateCape(p, dt);
 }
 
@@ -1239,7 +1240,7 @@ function drawHero(c, p){
     return;
   }
 
-  const legSwing = p.grounded ? Math.sin(p.animT*7)*Math.min(1, Math.abs(p.vx)/160) : 0.4;
+  const legSwing = p.grounded ? Math.sin(p.animT*7)*Math.min(1, Math.abs(p.vx)/138) : 0.4;
 
   if(p.low){
     c.save(); c.scale(p.face,1);
