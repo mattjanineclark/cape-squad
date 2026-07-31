@@ -388,6 +388,17 @@ const LEVELS = [
   goal:[3780,616]
 },
 {
+  name:"The Long Drop", w:1020, h:3300, spawn:[170,120],
+  plats:[[0,-200,120,3700,"wall"], [900,-200,120,3700,"wall"], [120,210,520,20,"solid"], [380,430,520,20,"solid"], [120,650,460,20,"solid"], [340,860,560,20,"ice"], [120,1080,500,20,"solid"], [420,1290,480,20,"crumble"], [120,1500,540,20,"solid"], [300,1700,180,20,"solid"], [620,1700,180,20,"solid"], [360,1920,540,20,"solid"], [120,2140,500,20,"ice"], [400,2360,500,20,"solid"], [120,2570,460,20,"crumble"], [360,2790,540,20,"solid"], [120,3010,780,290,"solid"]],
+  movers:[[200,2000,140,20,620,2000,120]],
+  saws:[[200,540,28,820,540,170], [820,970,28,200,970,180], [200,1810,26,820,1810,190], [820,2470,28,200,2470,175]],
+  spikes:[[530,430,80], [400,1080,80], [660,1920,80], [480,2360,80]],
+  crates:[[380,2962], [428,2962]],
+  checkpoints:[[800,430], [300,650], [300,1500], [500,1920], [500,2360]],
+  stars:[[700,380], [560,1245], [820,2740]],
+  goal:[480,2946]
+},
+{
   name:"Skyline Showdown", w:4560, h:900, spawn:[60,660],
   plats:[[-40,740,380,160,"solid"], [450,740,250,160,"solid"], [760,690,130,20,"solid"], [990,740,200,160,"solid"], [1080,650,120,20,"ice"], [1290,760,95,22,"bounce"], [1420,585,140,20,"solid"], [1650,515,140,20,"solid"], [1880,600,150,20,"ice"], [2040,740,340,160,"solid"], [2140,690,55,20,"solid"], [2210,630,170,70,"solid"], [2400,555,120,20,"solid"], [2560,485,120,20,"solid"], [2470,700,90,20,"solid"], [2620,690,110,20,"crumble"], [2780,640,110,20,"crumble"], [2940,740,240,160,"solid"], [3260,780,95,22,"bounce"], [3400,565,130,20,"solid"], [3650,645,130,20,"ice"], [3880,740,180,160,"solid"], [4140,740,420,160,"solid"], [4200,664,40,76,"solid"]],
   movers:[[1900,470,120,20,2110,470,110], [3060,600,110,20,3060,450,85], [3760,700,120,20,3880,560,110]],
@@ -473,7 +484,8 @@ function makePlayer(heroKey, idx){
     face:1, grounded:false, wasGrounded:false, groundType:'solid', coyote:0, buf:0,
     low:false, roll:0, rollCd:0, slide:false, slidePrev:false, twin:false, glide:false,
     shell:0, shellCd:0, cling:0, clingDir:0, rideMover:null,
-    animT:0, squash:1, invul:0, done:false, rank:0, offT:0, stars:0, cp:{x:0,y:0}, cape:[]
+    animT:0, squash:1, invul:0, done:false, rank:0, offT:0, stars:0,
+    cp:{x:0,y:0}, cpRef:null, cape:[]
   };
 }
 
@@ -571,7 +583,7 @@ function startLevel(i){
     p.roll=0; p.rollCd=0; p.slide=false; p.slidePrev=false; p.shell=0; p.shellCd=0;
     p.twin=false; p.glide=false; p.cling=0; p.invul=0.6; p.offT=0;
     p.low=false; p.h=PH; p.rideMover=null; p.grounded=false; p.groundType='solid';
-    p.cp = {x:p.x, y:p.y};
+    p.cp = {x:p.x, y:p.y}; p.cpRef = null;
     p.cape = []; for(let k=0;k<7;k++) p.cape.push({x:p.x, y:p.y});
   });
   game.cam.x = L.spawn.x; game.cam.y = L.spawn.y; game.cam.z = 1;
@@ -823,14 +835,11 @@ function updatePlayer(p, dt){
 
   /* ---- checkpoints, stars, beacon ---- */
   for(const c of L.checkpoints){
-    if(!c.hit && Math.abs(p.x+p.w/2 - c.x) < 44 && Math.abs(p.y+p.h/2 - c.y) < 100){
-      c.hit = true; pop(p,'CHECKPOINT');
-      for(let i=0;i<8;i++) spark(c.x, c.y-40, '#FFD23F');
+    if(Math.abs(p.x+p.w/2 - c.x) < 44 && Math.abs(p.y+p.h/2 - c.y) < 100){
+      if(!c.hit){ c.hit = true; for(let i=0;i<8;i++) spark(c.x, c.y-40, '#FFD23F'); }
+      if(p.cpRef !== c){ p.cpRef = c; p.cp = {x:c.x-16, y:c.y-64}; pop(p,'CHECKPOINT'); }
     }
   }
-  let best = null;
-  for(const c of L.checkpoints) if(c.hit && c.x <= p.x + 60) best = c;
-  if(best) p.cp = {x:best.x-16, y:best.y-64};
 
   for(const s of L.stars){
     if(s.got) continue;
@@ -914,7 +923,7 @@ function updateCamera(dt){
   if(halfW*2 > L.w) cam.x = L.w/2;
 
   if(ps.length>1 && !game.winner){
-    const leader = ps.reduce((a,b)=>a.x>b.x?a:b);
+    const leader = ps.reduce((a,b)=>goalDist(a) < goalDist(b) ? a : b);
     for(const p of ps){
       if(p===leader || p.done){ p.offT=0; continue; }
       const off = Math.abs(p.x-cam.x) > halfW+40 || Math.abs(p.y-cam.y) > halfH+60;
@@ -928,6 +937,10 @@ function updateCamera(dt){
       }
     }
   }
+}
+function goalDist(p){
+  const g = game.lvl.goal;
+  return Math.hypot(g.x - p.x, g.y - p.y);
 }
 function updateHUD(){
   $('hudTime').textContent = game.time.toFixed(1)+'"';
@@ -1074,6 +1087,17 @@ function drawPlat(p){
     ctx.fillStyle = '#FFD23F';
     for(let i=0;i<p.w-8;i+=16) ctx.fillRect(p.x+5+i,p.y+5,8,p.h-10);
     ctx.lineWidth = 3; ctx.strokeStyle = '#0B0A10'; ctx.strokeRect(p.x,p.y,p.w,p.h);
+  } else if(p.t==='wall'){
+    ctx.fillStyle = '#2B1F46'; ctx.fillRect(p.x,p.y,p.w,p.h);
+    ctx.strokeStyle = 'rgba(11,10,16,.55)'; ctx.lineWidth = 2;
+    const y0 = Math.max(p.y, game.cam.y - VIEW_H), y1 = Math.min(p.y+p.h, game.cam.y + VIEW_H);
+    for(let y=Math.ceil(y0/44)*44; y<y1; y+=44){
+      ctx.beginPath(); ctx.moveTo(p.x, y); ctx.lineTo(p.x+p.w, y); ctx.stroke();
+      const off = ((y/44)|0) % 2 ? p.w/2 : 0;
+      ctx.beginPath(); ctx.moveTo(p.x+off, y); ctx.lineTo(p.x+off, y+44); ctx.stroke();
+    }
+    ctx.lineWidth = 3.4; ctx.strokeStyle = '#0B0A10';
+    ctx.strokeRect(p.x-1, y0, p.w+2, y1-y0);
   } else {
     inkRect(p.x,p.y,p.w,p.h,'#3A2B57');
     ctx.fillStyle = '#5C4382'; ctx.fillRect(p.x+3,p.y+3,p.w-6,13);
@@ -1187,6 +1211,20 @@ function rr(c,x,y,w,h,r,fill,stroke){
 
 function drawHero(c, p){
   const H = p.H;
+
+  /* comic speed lines on a long drop */
+  if(p.vy > 520 && !p.done){
+    const k = Math.min(1, (p.vy-520)/380);
+    c.save();
+    c.strokeStyle = 'rgba(255,243,214,'+(0.25+k*0.4).toFixed(2)+')';
+    c.lineWidth = 2.4; c.lineCap = 'round';
+    for(let i=0;i<5;i++){
+      const ox = p.x + 4 + i*((p.w-8)/4);
+      const len = (14 + k*40) * (0.55 + ((i*29)%7)/9);
+      c.beginPath(); c.moveTo(ox, p.y - 8 - len); c.lineTo(ox, p.y - 8); c.stroke();
+    }
+    c.restore();
+  }
 
   /* cape, behind everything */
   const pts = p.cape, left = [], right = [];
