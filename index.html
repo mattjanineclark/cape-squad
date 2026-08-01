@@ -479,7 +479,7 @@
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
 
-const VERSION = 'v8.2';
+const VERSION = 'v8.3';
 const FLIP_DUR = 0.78;
 const MODES = [
   {id:'race',  name:'Race',      note:'First cape to the beacon takes the page.'},
@@ -515,7 +515,7 @@ function D(){ return game.diff || DIFFS[1]; }   /* normal until chosen */
 ------------------------------------------------------------------ */
 const net = {
   on:false, ws:null, you:-1, host:false, room:[], status:'',
-  prev:null, next:null, prevAt:0, nextAt:0, sendAt:0, lastSeen:0,
+  buf:[], clock:0, rate:1, prev:null, next:null, prevAt:0, nextAt:0, sendAt:0, lastSeen:0,
   peer:null, conn:null, send:null, code:'', myName:''
 };
 function netSend(o){
@@ -556,9 +556,9 @@ function netHandle(m){
       show(null);
     } else if(m.t === 'snap'){
       net.lastSeen = performance.now();
-      net.prev = net.next; net.prevAt = net.nextAt;
-      net.next = m; net.nextAt = performance.now();
-      if(!net.prev){ net.prev = m; net.prevAt = net.nextAt - 33; }
+      const b = net.buf;
+      if(!b.length || m.tm > b[b.length-1].tm) b.push(m);
+      while(b.length > 40) b.shift();
       applySnapMeta(m);
     } else if(m.t === 'over'){
       applySnapMeta(m.snap);
@@ -588,6 +588,9 @@ function applySnapMeta(m){
   L.stars.forEach((o,i)=>{ o.got = !!m.ST[i]; });
   L.checkpoints.forEach((o,i)=>{ o.hit = !!m.CP[i]; });
   game.gloves = m.GL.map(g=>({x:g[0], y:g[1], vx:0, dir:g[2], life:1, spin:g[3]}));
+  if(m.PO){
+    game.pops = m.PO.map(q=>({x:q[0], y:q[1], txt:q[2], life:q[3], col:q[4]}));
+  }
   if(m.CN !== undefined && m.CN >= 0 && L.captions[m.CN]){
     if(game.caption !== L.captions[m.CN].txt){ game.caption = L.captions[m.CN].txt; game.capT = 3.4; }
   }
@@ -623,17 +626,35 @@ function buildSnapshot(){
     CB:L.plats.map(o=>o.t==='crumble' ? [o.gone?1:0, Math.round(o.y)] : 0),
     ST:L.stars.map(o=>o.got?1:0),
     CP:L.checkpoints.map(o=>o.hit?1:0),
-    CN:cap
+    CN:cap,
+    PO: game.pops.slice(0,6).map(q=>[Math.round(q.x), Math.round(q.y), q.txt,
+                                     +q.life.toFixed(2), q.col])
   };
 }
 
 /* players are what the eye tracks, so interpolate them between snapshots */
-function applyNetPlayers(){
-  if(!net.prev || !net.next) return;
-  const span = Math.max(1, net.nextAt - net.prevAt);
-  const a = Math.max(0, Math.min(1, (performance.now() - NET_DELAY - net.prevAt)/span));
+function applyNetPlayers(dt){
+  const b = net.buf;
+  if(b.length < 2) return;
+  const newest = b[b.length-1].tm;
+  if(!net.clock || net.clock < b[0].tm || net.clock > newest + 0.5) net.clock = newest - NET_BUFFER;
+
+  /* ease the playback clock toward its target instead of jerking it */
+  const err = (newest - NET_BUFFER) - net.clock;
+  net.rate += (Math.max(-0.12, Math.min(0.12, err*0.8)) + 1 - net.rate) * Math.min(1, (dt||0.016)*6);
+  net.clock += (dt || 0.016) * net.rate;
+  if(net.clock > newest) net.clock = newest;
+
+  let lo = b[0], hi = b[b.length-1];
+  for(let k=0;k<b.length-1;k++){
+    if(b[k].tm <= net.clock && b[k+1].tm >= net.clock){ lo = b[k]; hi = b[k+1]; break; }
+  }
+  while(b.length > 3 && b[1].tm < net.clock - 0.5) b.shift();
+
+  const span = Math.max(1e-4, hi.tm - lo.tm);
+  const a = Math.max(0, Math.min(1, (net.clock - lo.tm)/span));
   for(let i=0;i<game.players.length;i++){
-    const p = game.players[i], A = net.prev.P[i], B = net.next.P[i];
+    const p = game.players[i], A = lo.P[i], B = hi.P[i];
     if(!A || !B) continue;
     p.x = A[0] + (B[0]-A[0])*a;
     p.y = A[1] + (B[1]-A[1])*a;
@@ -642,8 +663,10 @@ function applyNetPlayers(){
     p.roll = B[6]; p.slide = !!B[7]; p.glide = !!B[8]; p.shell = B[9];
     p.charm = !!B[10]; p.aegis = !!B[11]; p.dancing = B[12]; p.danceT = B[13];
     p.animT = B[14]; p.squash = B[15]; p.invul = B[16]; p.it = !!B[17];
-    p.stars = B[18]; p.done = !!B[19]; p.grounded = !!B[20]; p.pushFx = B[21];
-    updateCape(p, 1/60);
+    p.stars = B[18]; p.done = !!B[19];
+    const wasDown = p.grounded; p.grounded = !!B[20]; p.pushFx = B[21];
+    if(!wasDown && p.grounded) puff(p, 3);        /* guests make their own dust */
+    updateCape(p, dt || 1/60);
   }
 }
 /* ------------------------------------------------------------------
@@ -748,6 +771,13 @@ function hostPushLobby(){
   host.guests.forEach((g,i)=> g.send({t:'lobby', you:i+1, host:false, room}));
   if(game.state === 'lobby') renderLobby();
 }
+function hostLocalOnly(){
+  /* nothing local may write to a guest's slot */
+  for(let i=1;i<input.length;i++){
+    const st = input[i];
+    if(!host.guests.some(g=>g.slot===i)){ st.left=st.right=st.jump=st.power=st.dance=false; }
+  }
+}
 function hostBegin(level, mode, diff){
   const room = hostRoom().slice(0, MAX_PLAYERS);
   game.diff = DIFFS.find(d=>d.id===diff) || DIFFS[1];
@@ -781,13 +811,17 @@ function hostOnGuestMessage(g, m){
 }
 function hostTick(now){
   if(!host.on || game.state !== 'play') return;
-  if(now - host.sendAt < 33) return;
+  if(now - host.sendAt < 25) return;   /* 40 a second */
   host.sendAt = now;
   const snap = buildSnapshot();
   for(const g of host.guests) g.send(snap);
 }
 
-const NET_DELAY = 55;   /* render this far behind, so interpolation always has two points */
+/* Interpolating against arrival times makes every hiccup in the Wi-Fi show up as
+   a stutter. Instead keep a short buffer and play it back on the host's own
+   clock, running a fixed distance behind and easing the clock rather than
+   snapping it. */
+const NET_BUFFER = 0.12;      /* seconds behind the newest snapshot */
 
 const DANCE_WORDS = ['BOOGIE!','GROOVE!','SHAKE IT!','DISCO!','WOO!','FUNKY!','TWIST!','JIVE!','WIGGLE!'];
 const BANGS = ['BANG!','BASH!','POW!','WHAM!','THWACK!','SOCK!','KABOOM!','BOP!'];
@@ -1316,13 +1350,13 @@ addEventListener('keydown', e=>{
   if(e.code==='KeyR' && (game.state==='play'||game.state==='pause')) startLevel(game.li);
   const m = KEYMAP[e.code]; if(!m) return;
   e.preventDefault();
-  setBtn(game.players.length===1 ? 0 : m[0], m[1], true);
+  setBtn(net.on ? 0 : (game.players.length===1 ? 0 : m[0]), m[1], true);
 });
 addEventListener('keyup', e=>{
   if(typingInAField()) return;
   const m = KEYMAP[e.code]; if(!m) return;
   e.preventDefault();
-  setBtn(game.players.length===1 ? 0 : m[0], m[1], false);
+  setBtn(net.on ? 0 : (game.players.length===1 ? 0 : m[0]), m[1], false);
 });
 document.querySelectorAll('.tk').forEach(el=>{
   const p = +el.dataset.p, k = el.dataset.k;
@@ -1528,7 +1562,9 @@ function pick(key){
 function commitHeroes(){
   const keys = game.picks.slice(0, game.nPlayers);
   game.players = keys.map((k,i)=>makePlayer(k || 'panda', i));
-  layoutPads(game.nPlayers >= 2);
+  /* In a room every device drives one hero, so it gets the single-player pads
+     no matter how many are playing. The couch layout is for a shared screen. */
+  layoutPads(game.nPlayers >= 2 && !net.on);
 }
 
 /* ---------- costume screen ---------- */
@@ -3572,9 +3608,8 @@ function loop(now){
   }
   if(game.state==='play' && net.on && !net.host){
     /* the server is the simulation; we only send buttons and draw the result */
-    applyNetPlayers();
-    game.time = game.time;
-    for(let i=game.pops.length-1;i>=0;i--){ const q=game.pops[i]; q.life-=dt; q.y-=26*dt; if(q.life<=0) game.pops.splice(i,1); }
+    applyNetPlayers(dt);
+    for(let i=game.pops.length-1;i>=0;i--){ const q=game.pops[i]; q.y-=26*dt; if(q.life<=0) game.pops.splice(i,1); }
     for(let i=game.fx.length-1;i>=0;i--){ const f=game.fx[i]; f.life-=dt; f.x+=f.vx*dt; f.y+=f.vy*dt; f.vy+=(f.g||0)*dt; if(f.life<=0) game.fx.splice(i,1); }
     if(game.capT>0) game.capT -= dt;
     for(const s2 of game.lvl.stars) s2.t += dt*3;
