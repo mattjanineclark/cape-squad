@@ -193,6 +193,12 @@
   .lobrow .st{font-family:var(--display); font-size:14px; letter-spacing:.08em; padding:3px 8px 2px; border:3px solid var(--ink);}
   .lobrow .st.rdy{background:var(--pow);}
   .lobrow .st.you{background:var(--ice);}
+  #lobBigCode .code{
+    font-family:var(--display); font-size:clamp(44px,13vw,86px); letter-spacing:.12em;
+    color:var(--pow); -webkit-text-stroke:5px var(--ink); paint-order:stroke fill;
+    text-shadow:6px 6px 0 var(--ink); transform:skewX(-7deg); line-height:1;
+  }
+  #lobBigCode .hint{font-size:12px; letter-spacing:.12em; text-transform:uppercase; opacity:.8; margin-top:8px;}
   .padlabel{
     position:absolute; bottom:calc(82px + env(safe-area-inset-bottom)); display:none;
     font-family:var(--display); font-size:12px; letter-spacing:.14em;
@@ -317,8 +323,8 @@
       <button class="btn" id="btn1p">1 Player</button>
       <button class="btn alt" id="btn2p">2 Players</button>
     </div>
-    <div class="row" id="lanRow" style="display:none; margin-top:14px;">
-      <button class="btn warn" id="btnLan">Play over Wi-Fi</button>
+    <div class="row" style="margin-top:14px;">
+      <button class="btn warn" id="btnLan">Play together (up to 4)</button>
     </div>
     <div class="row" style="margin-top:14px;">
       <button class="btn ghost" id="btnHow" style="font-size:16px;">How to play</button>
@@ -340,7 +346,19 @@
       <label for="lobName">Your name</label>
       <input id="lobName" maxlength="10" placeholder="NAME" autocomplete="off" spellcheck="false">
     </div>
-    <div class="row"><button class="btn" id="btnLobJoin">Join</button></div>
+    <div class="row" id="lobStartRow">
+      <button class="btn" id="btnLobMake">Make a room</button>
+      <button class="btn alt" id="btnLobEnter">Join a room</button>
+    </div>
+    <div class="dedicate" id="lobCodeRow" style="display:none; margin-top:12px;">
+      <label for="lobCode">Room code</label>
+      <input id="lobCode" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false">
+      <button class="btn" id="btnLobGo" style="margin-top:8px;">Go</button>
+    </div>
+    <div id="lobBigCode" style="display:none; text-align:center; margin-top:10px;"></div>
+    <div class="row" id="lobWsRow" style="display:none;">
+      <button class="btn ghost" id="btnLobWs" style="font-size:15px;">Use this computer's server</button>
+    </div>
     <div id="lobList" style="width:min(560px,94vw); margin-top:16px;"></div>
     <div class="row" id="lobHostRow" style="display:none;">
       <button class="btn alt" id="btnLobHero">Pick hero</button>
@@ -461,7 +479,7 @@
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
 
-const VERSION = 'v8.0';
+const VERSION = 'v8.1';
 const FLIP_DUR = 0.78;
 const MODES = [
   {id:'race',  name:'Race',      note:'First cape to the beacon takes the page.'},
@@ -497,9 +515,11 @@ function D(){ return game.diff || DIFFS[1]; }   /* normal until chosen */
 ------------------------------------------------------------------ */
 const net = {
   on:false, ws:null, you:-1, host:false, room:[], status:'',
-  prev:null, next:null, prevAt:0, nextAt:0, sendAt:0, lastSeen:0
+  prev:null, next:null, prevAt:0, nextAt:0, sendAt:0, lastSeen:0,
+  peer:null, conn:null, send:null, code:'', myName:''
 };
 function netSend(o){
+  if(net.send){ net.send(o); return; }                       /* room game */
   if(net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(o));
 }
 function netConnect(name){
@@ -514,6 +534,12 @@ function netConnect(name){
   ws.onerror = ()=>{ net.status = 'could not connect'; renderLobby(); };
   ws.onmessage = ev=>{
     let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+    netHandle(m);
+  };
+}
+
+/* Everything a guest does with a message, whichever transport carried it. */
+function netHandle(m){
     if(m.t === 'lobby'){
       net.you = m.you; net.host = m.host; net.room = m.room;
       if(game.state !== 'play' && game.state !== 'flip') renderLobby();
@@ -538,7 +564,6 @@ function netConnect(name){
       applySnapMeta(m.snap);
       game.state = 'end'; show('end'); fillEndSheet();
     }
-  };
 }
 
 /* everything in a snapshot that is not a moving body: set it outright */
@@ -559,13 +584,47 @@ function applySnapMeta(m){
   L.switches.forEach((o,i)=>{ if(typeof m.SW[i]==='number') o.timer = m.SW[i]; });
   L.turrets.forEach((o,i)=>{ if(typeof m.TU[i]==='number') o.t = m.TU[i]; });
   L.crates.forEach((o,i)=>{ o.gone = !!m.CR[i]; });
-  L.plats.forEach((o,i)=>{ const c=m.CB && m.CB[i]; if(c){ o.gone=!!c[0]; o.y=c[1]; } });
+  L.plats.forEach((o,i)=>{ const c=m.CB && m.CB[i]; if(c && c.length){ o.gone=!!c[0]; o.y=c[1]; } });
   L.stars.forEach((o,i)=>{ o.got = !!m.ST[i]; });
   L.checkpoints.forEach((o,i)=>{ o.hit = !!m.CP[i]; });
   game.gloves = m.GL.map(g=>({x:g[0], y:g[1], vx:0, dir:g[2], life:1, spin:g[3]}));
   if(m.CN !== undefined && m.CN >= 0 && L.captions[m.CN]){
     if(game.caption !== L.captions[m.CN].txt){ game.caption = L.captions[m.CN].txt; game.capT = 3.4; }
   }
+}
+
+/* One snapshot builder, used by whoever is hosting: a browser or the Node
+   server. Sharing it means the two can never describe the world differently. */
+function buildSnapshot(){
+  const g = game, L = g.lvl;
+  const P = g.players.map(p => [
+    +p.x.toFixed(2), +p.y.toFixed(2), +p.vx.toFixed(1), +p.vy.toFixed(1),
+    p.face, p.low?1:0, +p.roll.toFixed(2), p.slide?1:0, p.glide?1:0,
+    +p.shell.toFixed(2), p.charm?1:0, p.aegis?1:0,
+    +p.dancing.toFixed(2), +p.danceT.toFixed(2), +p.animT.toFixed(2),
+    +p.squash.toFixed(3), +p.invul.toFixed(2), p.it?1:0,
+    p.stars, p.done?1:0, p.grounded?1:0, +p.pushFx.toFixed(2)
+  ]);
+  let cap = -1;
+  for(let i=0;i<L.captions.length;i++) if(L.captions[i].fired) cap = i;
+  return {
+    t:'snap', tm:+g.time.toFixed(2), wp:g.wipes, sg:g.starsGot,
+    lv:g.lives, tg:+g.tagT.toFixed(2), P,
+    M:L.movers.map(o=>+o.prog.toFixed(4)),
+    S:L.saws.map(o=>+o.prog.toFixed(4)),
+    SR:L.saws.map(o=>+o.rot.toFixed(2)),
+    K:L.stampers.map(o=>+o.phase.toFixed(4)),
+    G:L.gates.map(o=>o.open?1:0),
+    PL:L.plates.map(o=>o.down?1:0),
+    SW:L.switches.map(o=>+o.timer.toFixed(2)),
+    TU:L.turrets.map(o=>+o.t.toFixed(2)),
+    GL:game.gloves.map(o=>[Math.round(o.x), Math.round(o.y), o.dir, +o.spin.toFixed(2)]),
+    CR:L.crates.map(o=>o.gone?1:0),
+    CB:L.plats.map(o=>o.t==='crumble' ? [o.gone?1:0, Math.round(o.y)] : 0),
+    ST:L.stars.map(o=>o.got?1:0),
+    CP:L.checkpoints.map(o=>o.hit?1:0),
+    CN:cap
+  };
 }
 
 /* players are what the eye tracks, so interpolate them between snapshots */
@@ -587,6 +646,147 @@ function applyNetPlayers(){
     updateCape(p, 1/60);
   }
 }
+/* ------------------------------------------------------------------
+   Hosting from a browser. One device runs the game for everyone and posts
+   snapshots; the rest send buttons. Same messages as the Node server, so both
+   ends of the conversation are already proven.
+------------------------------------------------------------------ */
+const host = { on:false, guests:[], sendAt:0 };
+
+/* PeerJS is fetched only when someone actually chooses a room game, so the
+   standalone file keeps working with no internet at all. */
+const PEERJS_SRC = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';   // no I or O, they read as 1 and 0
+function makeCode(){
+  let c=''; for(let i=0;i<4;i++) c += CODE_LETTERS[(Math.random()*CODE_LETTERS.length)|0];
+  return c;
+}
+function peerIdFor(code){ return 'capesquad-v8-' + code.toUpperCase(); }
+
+let peerLib = null;
+function loadPeer(){
+  if(peerLib) return Promise.resolve(peerLib);
+  if(typeof Peer !== 'undefined'){ peerLib = Peer; return Promise.resolve(peerLib); }
+  return new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = PEERJS_SRC;
+    s.onload = ()=>{ peerLib = (typeof Peer !== 'undefined') ? Peer : null;
+                     peerLib ? res(peerLib) : rej(new Error('peer missing')); };
+    s.onerror = ()=>rej(new Error('could not load the connection library'));
+    document.body.appendChild(s);
+  });
+}
+
+function roomHost(name){
+  net.myName = name;
+  net.status = 'opening a room...';
+  renderLobby();
+  loadPeer().then(P=>{
+    const code = makeCode();
+    const peer = new P(peerIdFor(code));
+    net.peer = peer; net.code = code;
+    peer.on('open', ()=>{
+      host.on = true; hostReset(); host.on = true;
+      net.on = true; net.host = true; net.you = 0;
+      net.status = 'room open';
+      hostPushLobby(); renderLobby();
+    });
+    peer.on('error', e=>{
+      net.status = (''+e).indexOf('unavailable') >= 0
+        ? 'that room code is taken, try again' : 'could not open a room';
+      renderLobby();
+    });
+    peer.on('connection', conn=>{
+      const g = { conn, name:'PLAYER', hero:'panda', kit:null, ready:false,
+                  slot: host.guests.length + 1,
+                  send:o=>{ try{ conn.send(o); }catch(e){} } };
+      if(host.guests.length >= MAX_PLAYERS-1){ try{ conn.close(); }catch(e){} return; }
+      host.guests.push(g);
+      conn.on('data', m=>hostOnGuestMessage(g, m));
+      conn.on('close', ()=>{
+        host.guests = host.guests.filter(x=>x!==g);
+        host.guests.forEach((x,i)=>x.slot=i+1);
+        hostPushLobby();
+      });
+      hostPushLobby();
+    });
+  }).catch(e=>{ net.status = e.message; renderLobby(); });
+}
+
+function roomJoin(name, code){
+  net.myName = name;
+  net.status = 'looking for room ' + code + '...';
+  renderLobby();
+  loadPeer().then(P=>{
+    const peer = new P();
+    net.peer = peer;
+    peer.on('open', ()=>{
+      const conn = peer.connect(peerIdFor(code), {reliable:true});
+      net.conn = conn;
+      net.send = o=>{ try{ conn.send(o); }catch(e){} };
+      conn.on('open', ()=>{
+        net.on = true; net.host = false; net.status = 'joined';
+        net.send({t:'join', name:name});
+      });
+      conn.on('data', m=>netHandle(m));
+      conn.on('close', ()=>{ net.on=false; net.status='the host closed the room'; renderLobby(); });
+      conn.on('error', ()=>{ net.status='could not reach that room'; renderLobby(); });
+    });
+    peer.on('error', ()=>{ net.status = 'no room with that code'; renderLobby(); });
+  }).catch(e=>{ net.status = e.message; renderLobby(); });
+}
+
+function hostReset(){ host.on = false; host.guests = []; }
+
+function hostRoom(){
+  return [{name: net.myName || 'HOST', hero: game.picks[0] || 'panda', ready:true}]
+    .concat(host.guests.map(g=>({name:g.name, hero:g.hero, ready:g.ready})));
+}
+function hostPushLobby(){
+  const room = hostRoom();
+  net.room = room; net.you = 0; net.host = true;
+  host.guests.forEach((g,i)=> g.send({t:'lobby', you:i+1, host:false, room}));
+  if(game.state === 'lobby') renderLobby();
+}
+function hostBegin(level, mode, diff){
+  const room = hostRoom().slice(0, MAX_PLAYERS);
+  game.diff = DIFFS.find(d=>d.id===diff) || DIFFS[1];
+  game.mode = mode || 'race';
+  game.nPlayers = room.length;
+  game.picks = room.map(r=>r.hero);
+  game.kits  = [game.kits[0]].concat(host.guests.map(g=>g.kit || DEFAULT_KIT)).slice(0, room.length);
+  commitHeroes();
+  startLevel(level|0);
+  clearInputs();
+  net.on = true; net.you = 0; net.host = true;
+  host.guests.forEach((g,i)=> g.send({
+    t:'begin', you:i+1, level:level|0, mode:game.mode, diff:game.diff.id,
+    heroes: room.map((r,k)=>({name:r.name, hero:r.hero,
+      kit: k===0 ? game.kits[0] : (host.guests[k-1] && host.guests[k-1].kit) || DEFAULT_KIT}))
+  }));
+  show(null);
+}
+function hostOnGuestMessage(g, m){
+  if(m.t === 'join'){ g.name = String(m.name||'PLAYER').slice(0,10).toUpperCase(); hostPushLobby(); }
+  else if(m.t === 'pick'){ if(HEROES[m.hero]) g.hero = m.hero; if(m.kit) g.kit = m.kit; g.ready = true; hostPushLobby(); }
+  else if(m.t === 'ready'){ g.ready = !!m.v; hostPushLobby(); }
+  else if(m.t === 'in'){
+    const st = input[g.slot];
+    if(!st || game.state !== 'play') return;
+    const j = !!m.j, pw = !!m.p;
+    if(j && !st.jump) st.jumpP = true;
+    if(pw && !st.power) st.powerP = true;
+    st.left = !!m.l; st.right = !!m.r; st.jump = j; st.power = pw; st.dance = !!m.d;
+  }
+}
+function hostTick(now){
+  if(!host.on || game.state !== 'play') return;
+  if(now - host.sendAt < 33) return;
+  host.sendAt = now;
+  const snap = buildSnapshot();
+  for(const g of host.guests) g.send(snap);
+}
+
 const NET_DELAY = 55;   /* render this far behind, so interpolation always has two points */
 
 const DANCE_WORDS = ['BOOGIE!','GROOVE!','SHAKE IT!','DISCO!','WOO!','FUNKY!','TWIST!','JIVE!','WIGGLE!'];
@@ -1170,11 +1370,17 @@ const $ = id=>document.getElementById(id);
 $('btnHow').onclick = ()=>{ game.state='how'; show('how'); };
 $('btnLan').onclick = ()=>{ game.state='lobby'; show('lobby'); renderLobby(); };
 $('btnLobBack').onclick = ()=>{ game.state='title'; show('title'); };
-$('btnLobJoin').onclick = ()=>{
-  const n = ($('lobName').value||'').trim().toUpperCase() || 'PLAYER';
-  netConnect(n);
-  renderLobby();
+function lobName(){ return ($('lobName').value||'').trim().toUpperCase() || 'PLAYER'; }
+$('btnLobMake').onclick  = ()=>{ roomHost(lobName()); };
+$('btnLobEnter').onclick = ()=>{
+  $('lobCodeRow').style.display='flex'; $('lobStartRow').style.display='none';
 };
+$('btnLobGo').onclick = ()=>{
+  const c = ($('lobCode').value||'').trim().toUpperCase();
+  if(c.length !== 4){ net.status = 'a room code is four letters'; renderLobby(); return; }
+  roomJoin(lobName(), c);
+};
+$('btnLobWs').onclick = ()=>{ netConnect(lobName()); renderLobby(); };
 $('btnLobReady').onclick = ()=>{
   const me = net.room[net.you];
   netSend({t:'ready', v: !(me && me.ready)});
@@ -1186,15 +1392,27 @@ $('btnLobHero').onclick = $('btnLobHero2').onclick = ()=>{
   game.state='select'; show('select');
 };
 $('btnLobStart').onclick = ()=>{
-  netSend({t:'start', level:game.li||0, mode:game.mode, diff:game.diff.id});
+  if(host.on) hostBegin(game.li||0, game.mode, game.diff.id);
+  else netSend({t:'start', level:game.li||0, mode:game.mode, diff:game.diff.id});
 };
 
 function renderLobby(){
   const st = $('lobStatus');
+  $('lobWsRow').style.display = window.CAPE_LAN ? 'flex' : 'none';
   if(!net.on){
-    st.textContent = net.status || 'Everyone on the same Wi-Fi joins here.';
+    st.textContent = net.status || 'One of you makes a room. The others join with the code.';
     $('lobList').innerHTML = ''; $('lobHostRow').style.display='none';
-    $('lobGuestRow').style.display='none'; return;
+    $('lobGuestRow').style.display='none'; $('lobBigCode').style.display='none';
+    return;
+  }
+  $('lobStartRow').style.display='none'; $('lobCodeRow').style.display='none';
+  $('lobWsRow').style.display='none';
+  if(net.host && net.code){
+    $('lobBigCode').style.display='block';
+    $('lobBigCode').innerHTML = '<div class="code">'+net.code+'</div>'+
+      '<div class="hint">the others type this in</div>';
+  } else {
+    $('lobBigCode').style.display='none';
   }
   st.textContent = net.host ? 'You are the host. Start when everyone is ready.'
                             : 'Waiting for the host to start.';
@@ -1367,7 +1585,8 @@ $('btnKitBack').onclick = ()=>{ game.picking = 0; buildRoster(); updateSelectHea
 $('btnKitDone').onclick = ()=>{
   if(game.netPicking){
     game.netPicking = false;
-    netSend({t:'pick', hero:game.picks[0], kit:game.kits[0]});
+    if(host.on) hostPushLobby();
+    else netSend({t:'pick', hero:game.picks[0], kit:game.kits[0]});
     game.state='lobby'; show('lobby'); renderLobby();
     return;
   }
@@ -3339,7 +3558,7 @@ function loop(now){
     game.flip -= dt;
     if(game.flip <= 0){ game.flip = 0; game.state = 'play'; }
   }
-  if(game.state==='play' && net.on){
+  if(game.state==='play' && net.on && !net.host){
     /* the server is the simulation; we only send buttons and draw the result */
     applyNetPlayers();
     game.time = game.time;
@@ -3360,6 +3579,13 @@ function loop(now){
       update(STEP); acc -= STEP;
       if(game.state !== 'play') break;
     }
+    if(host.on){
+      hostTick(now);
+      if(game.state === 'end'){
+        const snap = buildSnapshot();
+        for(const g of host.guests) g.send({t:'over', snap});
+      }
+    }
   } else {
     acc = 0;
     input.forEach(s=>{ s.jumpP = false; s.powerP = false; });
@@ -3379,7 +3605,6 @@ function loop(now){
 });
 
 game.diff = DIFFS[1];
-if(window.CAPE_LAN) document.getElementById('lanRow').style.display = 'flex';
 buildTitleStrip();
 resize();
 show('title');
