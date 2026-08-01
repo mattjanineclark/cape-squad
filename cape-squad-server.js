@@ -324,11 +324,49 @@ function addresses(){
   return out.length ? out : ['127.0.0.1'];
 }
 
-server.listen(PORT, () => {
-  console.log('\n  Cape Squad is running.\n');
-  for(const a of addresses()) console.log('     http://' + a + ':' + PORT);
-  console.log('\n  Open that on each device, on the same Wi-Fi.');
-  console.log('  Tap "Play over Wi-Fi". First to join is the host.\n');
+/* A ChromeOS Linux container sits behind its own little network, so the address
+   it can see is not the address the iPads can reach. Say so plainly rather than
+   printing something that will not work. */
+function isCrostini(addr){ return addr.startsWith('100.115.92.'); }
+
+server.listen(PORT, '0.0.0.0', () => {
+  const addrs = addresses();
+  const crostini = addrs.some(isCrostini);
+  console.log('');
+  console.log('  ===================================================');
+  console.log('   Cape Squad is running on port ' + PORT);
+  console.log('  ===================================================');
+  console.log('');
+  if(crostini){
+    console.log('   Looks like a Chromebook Linux container.');
+    console.log('');
+    console.log('   Two more things before the other devices can join:');
+    console.log('');
+    console.log('     1. ChromeOS Settings -> Advanced -> Developers');
+    console.log('           -> Linux -> Port forwarding');
+    console.log('        Add port ' + PORT + ' (TCP).');
+    console.log('');
+    console.log('     2. Find the CHROMEBOOK\'s own Wi-Fi address:');
+    console.log('        Settings -> Network -> Wi-Fi -> (your network)');
+    console.log('        It looks like 192.168.x.x');
+    console.log('');
+    console.log('     Then everyone opens:   http://<that address>:' + PORT);
+    console.log('');
+    console.log('   On the Chromebook itself you can just use:');
+    console.log('        http://localhost:' + PORT);
+  } else {
+    console.log('   Open this on every device, on the same Wi-Fi:');
+    console.log('');
+    for(const a of addrs) console.log('        http://' + a + ':' + PORT);
+    console.log('');
+    console.log('   On this machine you can also use http://localhost:' + PORT);
+  }
+  console.log('');
+  console.log('   Then: tap "Play over Wi-Fi", type a name, tap Join.');
+  console.log('   First person to join is the host and starts the game.');
+  console.log('');
+  console.log('   Press Ctrl+C here to stop.');
+  console.log('');
 });
 
 module.exports = { server, G };

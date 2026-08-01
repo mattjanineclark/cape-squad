@@ -1,56 +1,103 @@
 # Playing Cape Squad over your Wi-Fi
 
-Up to four players, each on their own phone, tablet or laptop.
+Up to four players, each on their own screen.
 
-## What you need
+## First, the honest bit
 
-One computer on the same Wi-Fi as everyone else, with **Node.js** installed
-(nodejs.org — the "LTS" download). Nothing else. No `npm install`.
+One machine has to run the server, and it needs **Node.js**. iPhones and iPads
+cannot do this. A **Chromebook can**, if it is allowed to turn on its Linux
+environment — school-managed Chromebooks often have that blocked.
 
-## Running it
+**Check this before anything else. It takes thirty seconds:**
 
-1. Download this repository (green **Code** button on GitHub → **Download ZIP**)
-   and unzip it.
-2. Open a terminal / command prompt in that folder and run:
+> Chromebook → **Settings** → **About ChromeOS** → **Developers**
+> Look for **Linux development environment**.
 
-       node cape-squad-server.js
+- **It is there** → follow the steps below.
+- **It is missing or greyed out** → this will not work on your kit. Tell me and
+  I will build the version that needs nothing installed.
 
-3. It prints an address, something like `http://192.168.1.42:8080`.
-   On Windows you may get a firewall prompt the first time — allow it on
-   **private networks**, or nobody will be able to connect.
-4. Everyone opens that address in their browser, on the same Wi-Fi.
-5. Tap **Play over Wi-Fi**, type a name, tap **Join**.
-6. Each player taps **Pick hero**, chooses an animal and a costume.
-7. The first person who joined is the host and gets the **Start the page**
-   button.
+## Step by step, on the Chromebook
 
-To stop the server, press `Ctrl+C` in the terminal.
+**1. Turn on Linux.**
+Settings → About ChromeOS → Developers → Linux development environment →
+**Set up**. Accept the defaults (10 GB is plenty). It takes a few minutes and
+finishes by opening a black **Terminal** window.
 
-## How it works
+**2. Install Node and the bits to unpack a download.** In that Terminal:
 
-The computer running the server plays the whole game — physics, hazards, the
-lot — and sends everyone about 30 updates a second. Your device sends button
-presses and draws what it is told. That means nobody can get out of step with
-anybody else, and each player gets their own camera following their own hero
-instead of everyone squeezing onto one screen.
+    sudo apt update
+    sudo apt install -y nodejs curl unzip
 
-It is roughly 17 KB per second per device. Your Wi-Fi will not notice.
+Check it worked:
 
-## If it does not work
+    node --version
 
-- **Nobody can connect.** Almost always the firewall on the host machine, or a
-  guest network with "client isolation" turned on. Put every device on the
-  normal home Wi-Fi, not the guest one.
-- **The address does not load.** Check every device is on the same Wi-Fi and
-  not on mobile data. Type the address exactly, including `http://` and the
-  `:8080`.
-- **A player drops out.** They can reload the page and join again. The others
-  keep playing.
-- **Phones sleeping.** iOS pauses a tab when you switch apps or the screen
-  locks. Keep the game in front.
+Anything from v12 up is fine.
 
-## The normal game still works
+**3. Fetch the game.** Still in the Terminal:
 
-`index.html` on its own is unchanged — the single-player and couch two-player
-game plays exactly as before, with no server and no internet. The Wi-Fi button
-only appears when the page is being served by `cape-squad-server.js`.
+    curl -L -o cape.zip https://github.com/mattjanineclark/cape-squad/archive/refs/heads/main.zip
+    unzip cape.zip
+    cd cape-squad-main
+
+**4. Start it.**
+
+    node cape-squad-server.js
+
+It prints instructions. Leave this window open — closing it stops the game.
+
+**5. Open the door to the other devices.** The Linux part of a Chromebook sits
+behind its own little network, so the iPads cannot reach it until you say so:
+
+Settings → Advanced → **Developers** → **Linux** → **Port forwarding** →
+**Add** → port **8080**, TCP.
+
+**6. Find the Chromebook\'s Wi-Fi address.**
+Settings → **Network** → **Wi-Fi** → tap your network. Look for the IP address,
+something like `192.168.1.42`.
+
+**7. Everyone joins.** On each iPhone and iPad, in Safari:
+
+    http://192.168.1.42:8080
+
+(using your own number from step 6). On the Chromebook itself you can use
+`http://localhost:8080`.
+
+**8. Play.** Tap **Play over Wi-Fi** → type a name → **Join** → **Pick hero** →
+choose an animal and a costume. The first person who joined is the host and
+gets the **Start the page** button.
+
+## Every time after the first
+
+Only steps 4 and 7. Open the Terminal, then:
+
+    cd cape-squad-main
+    node cape-squad-server.js
+
+Port forwarding stays set.
+
+## If it will not connect
+
+- **Everything must be on the same Wi-Fi.** Not the guest network, and not
+  mobile data. Turn mobile data off on the iPhones if they keep wandering off.
+- **Guest networks block this on purpose.** They stop devices talking to each
+  other. Use the normal home network.
+- **Check the address.** It needs the `http://` and the `:8080`.
+- **Skipped step 5?** That is the usual one. Without port forwarding only the
+  Chromebook can reach the game.
+
+## While playing
+
+- iOS pauses a tab when you lock the screen or switch apps, so keep the game in
+  front. If someone drops out the others carry on, and they can rejoin at the
+  next page.
+- Each player sees their own hero with their own camera, so you can be far apart
+  without squashing everyone onto one screen.
+- About 17 KB a second per device. Your Wi-Fi will not notice.
+
+## The normal game is unchanged
+
+`index.html` on its own still plays exactly as before — one player or two on a
+shared screen, no server, no internet. The Wi-Fi button only appears when the
+page is served by `cape-squad-server.js`.
