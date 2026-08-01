@@ -479,7 +479,7 @@
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
 
-const VERSION = 'v8.1';
+const VERSION = 'v8.2';
 const FLIP_DUR = 0.78;
 const MODES = [
   {id:'race',  name:'Race',      note:'First cape to the beacon takes the page.'},
@@ -1300,7 +1300,18 @@ function setBtn(p,k,down){
   if(down && !st[k]){ if(k==='jump') st.jumpP=true; if(k==='power') st.powerP=true; }
   st[k] = down;
 }
+/* The game claims A, S, D, W, Q, M and the arrows, and calls preventDefault on
+   them. If someone is typing their name or a room code, those keystrokes must
+   reach the box instead: otherwise most of the left of the keyboard silently
+   does nothing. */
+function typingInAField(){
+  const a = document.activeElement;
+  if(!a) return false;
+  const tag = (a.tagName || '').toUpperCase();
+  return tag === 'INPUT' || tag === 'TEXTAREA' || a.isContentEditable === true;
+}
 addEventListener('keydown', e=>{
+  if(typingInAField()) return;
   if(e.code==='Escape'){ game.state==='play' ? pause() : (game.state==='pause' && resume()); }
   if(e.code==='KeyR' && (game.state==='play'||game.state==='pause')) startLevel(game.li);
   const m = KEYMAP[e.code]; if(!m) return;
@@ -1308,6 +1319,7 @@ addEventListener('keydown', e=>{
   setBtn(game.players.length===1 ? 0 : m[0], m[1], true);
 });
 addEventListener('keyup', e=>{
+  if(typingInAField()) return;
   const m = KEYMAP[e.code]; if(!m) return;
   e.preventDefault();
   setBtn(game.players.length===1 ? 0 : m[0], m[1], false);
