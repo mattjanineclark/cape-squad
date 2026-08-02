@@ -479,7 +479,7 @@
    CAPE SQUAD — comic-book animal platformer, 1–2 players
    ========================================================== */
 
-const VERSION = 'v8.3';
+const VERSION = 'v8.4';
 const FLIP_DUR = 0.78;
 const MODES = [
   {id:'race',  name:'Race',      note:'First cape to the beacon takes the page.'},
@@ -656,6 +656,11 @@ function applyNetPlayers(dt){
   for(let i=0;i<game.players.length;i++){
     const p = game.players[i], A = lo.P[i], B = hi.P[i];
     if(!A || !B) continue;
+    if(!p.remote){
+      /* ours to drive; still take the host's word on score and tag */
+      p.it = !!B[17]; p.stars = B[18]; p.done = !!B[19];
+      continue;
+    }
     p.x = A[0] + (B[0]-A[0])*a;
     p.y = A[1] + (B[1]-A[1])*a;
     p.vx = B[2]; p.vy = B[3];
@@ -789,6 +794,7 @@ function hostBegin(level, mode, diff){
   startLevel(level|0);
   clearInputs();
   net.on = true; net.you = 0; net.host = true;
+  game.players.forEach((p,i)=>{ p.remote = (i !== 0); p.inSlot = i; });
   host.guests.forEach((g,i)=> g.send({
     t:'begin', you:i+1, level:level|0, mode:game.mode, diff:game.diff.id,
     heroes: room.map((r,k)=>({name:r.name, hero:r.hero,
@@ -800,6 +806,9 @@ function hostOnGuestMessage(g, m){
   if(m.t === 'join'){ g.name = String(m.name||'PLAYER').slice(0,10).toUpperCase(); hostPushLobby(); }
   else if(m.t === 'pick'){ if(HEROES[m.hero]) g.hero = m.hero; if(m.kit) g.kit = m.kit; g.ready = true; hostPushLobby(); }
   else if(m.t === 'ready'){ g.ready = !!m.v; hostPushLobby(); }
+  else if(m.t === 'st'){
+    applyStatePacket(game.players[g.slot], m.s);
+  }
   else if(m.t === 'in'){
     const st = input[g.slot];
     if(!st || game.state !== 'play') return;
@@ -811,7 +820,7 @@ function hostOnGuestMessage(g, m){
 }
 function hostTick(now){
   if(!host.on || game.state !== 'play') return;
-  if(now - host.sendAt < 25) return;   /* 40 a second */
+  if(now - host.sendAt < 20) return;   /* 50 a second */
   host.sendAt = now;
   const snap = buildSnapshot();
   for(const g of host.guests) g.send(snap);
@@ -821,7 +830,30 @@ function hostTick(now){
    a stutter. Instead keep a short buffer and play it back on the host's own
    clock, running a fixed distance behind and easing the clock rather than
    snapping it. */
-const NET_BUFFER = 0.12;      /* seconds behind the newest snapshot */
+const NET_BUFFER = 0.09;      /* only affects how smoothly you see the others now */
+
+/* Your own hero, described for everyone else. */
+function myStatePacket(){
+  const p = game.players[net.you];
+  if(!p) return {t:'st'};
+  return {t:'st', s:[
+    +p.x.toFixed(2), +p.y.toFixed(2), +p.vx.toFixed(1), +p.vy.toFixed(1),
+    p.face, p.low?1:0, +p.roll.toFixed(2), p.slide?1:0, p.glide?1:0,
+    +p.shell.toFixed(2), p.charm?1:0, p.aegis?1:0,
+    +p.dancing.toFixed(2), +p.danceT.toFixed(2), +p.animT.toFixed(2),
+    +p.squash.toFixed(3), +p.invul.toFixed(2), p.grounded?1:0, +p.pushFx.toFixed(2)
+  ]};
+}
+function applyStatePacket(p, a){
+  if(!p || !a) return;
+  p.x=a[0]; p.y=a[1]; p.vx=a[2]; p.vy=a[3]; p.face=a[4];
+  p.low=!!a[5]; p.h = p.low ? PH_LOW : PH;
+  p.roll=a[6]; p.slide=!!a[7]; p.glide=!!a[8]; p.shell=a[9];
+  p.charm=!!a[10]; p.aegis=!!a[11]; p.dancing=a[12]; p.danceT=a[13];
+  p.animT=a[14]; p.squash=a[15]; p.invul=a[16];
+  const wasDown = p.grounded; p.grounded=!!a[17]; p.pushFx=a[18];
+  if(!wasDown && p.grounded) puff(p, 3);
+}      /* seconds behind the newest snapshot */
 
 const DANCE_WORDS = ['BOOGIE!','GROOVE!','SHAKE IT!','DISCO!','WOO!','FUNKY!','TWIST!','JIVE!','WIGGLE!'];
 const BANGS = ['BANG!','BASH!','POW!','WHAM!','THWACK!','SOCK!','KABOOM!','BOP!'];
@@ -1386,11 +1418,11 @@ const game = {
 
 function makePlayer(heroKey, idx){
   return {
-    idx, H:HEROES[heroKey], kit:Object.assign({}, game.kits[idx] || DEFAULT_KIT), x:0, y:0, w:PW, h:PH, vx:0, vy:0,
+    idx, inSlot:idx, H:HEROES[heroKey], kit:Object.assign({}, game.kits[idx] || DEFAULT_KIT), x:0, y:0, w:PW, h:PH, vx:0, vy:0,
     face:1, grounded:false, wasGrounded:false, groundType:'solid', coyote:0, buf:0,
     low:false, roll:0, rollCd:0, slide:false, slidePrev:false, twin:false, glide:false,
     shell:0, shellCd:0, cling:0, clingDir:0, rideMover:null,
-    animT:0, squash:1, invul:0, done:false, rank:0, offT:0, stars:0,
+    animT:0, squash:1, invul:0, done:false, rank:0, offT:0, stars:0, remote:false,
     cp:{x:0,y:0}, cpRef:null, belt:0, onHero:null, rideStamp:null, hurt:0, stun:0, it:false, tagCd:0, dash:0, dashed:false, hopCd:0, turbo:false, turboPrev:false,
     turboFuel:1.5, pound:false, glideFuel:GLIDE_FUEL, wasDamped:false, jumpCut:false,
     pounced:false, charm:false, charmCd:0, wool:false, flaps:0, climbCd:0,
@@ -1562,6 +1594,14 @@ function pick(key){
 function commitHeroes(){
   const keys = game.picks.slice(0, game.nPlayers);
   game.players = keys.map((k,i)=>makePlayer(k || 'panda', i));
+  const mine = net.on ? net.you : -1;
+  if(net.on){
+    game.players.forEach((p,i)=>{
+      p.remote = (i !== mine);
+      /* this device has one set of controls, and they drive whichever hero is ours */
+      p.inSlot = (i === mine) ? 0 : i;
+    });
+  }
   /* In a room every device drives one hero, so it gets the single-player pads
      no matter how many are playing. The couch layout is for a shared screen. */
   layoutPads(game.nPlayers >= 2 && !net.on);
@@ -1952,7 +1992,9 @@ function update(dt){
     g.o += ((held?1:0) - g.o) * Math.min(1, dt*9);
   }
 
-  for(const p of game.players) updatePlayer(p, dt);
+  /* You simulate your own hero and nobody else's. Yours therefore answers the
+     button immediately; everyone else's arrives over the wire. */
+  for(const p of game.players){ if(p.remote) continue; updatePlayer(p, dt); }
 
   for(let i=game.fx.length-1;i>=0;i--){
     const f = game.fx[i];
@@ -1967,6 +2009,7 @@ function update(dt){
   updateCamera(dt);
   updateHUD();
 
+  if(net.on && !net.host) return;        /* the host decides when a page is over */
   if(L.coop){
     if(game.players.every(p=>p.done)) finishLevel();
   } else if(game.nPlayers>=2){
@@ -1975,7 +2018,7 @@ function update(dt){
 }
 
 function updatePlayer(p, dt){
-  const st = input[p.idx], L = game.lvl, H = p.H.key;
+  const st = input[p.inSlot] || input[0], L = game.lvl, H = p.H.key;
   if(p.done){ p.vx *= 0.86; p.animT += dt; updateCape(p,dt); return; }
 
   p.wasGrounded = p.grounded;
@@ -3607,17 +3650,16 @@ function loop(now){
     if(game.flip <= 0){ game.flip = 0; game.state = 'play'; }
   }
   if(game.state==='play' && net.on && !net.host){
-    /* the server is the simulation; we only send buttons and draw the result */
+    /* Run the whole game locally so our own hero answers instantly, then let the
+       host's snapshots correct the world and everybody else. */
+    acc += dt;
+    let guard = 0;
+    while(acc >= STEP && guard++ < 12){ update(STEP); acc -= STEP; }
     applyNetPlayers(dt);
-    for(let i=game.pops.length-1;i>=0;i--){ const q=game.pops[i]; q.y-=26*dt; if(q.life<=0) game.pops.splice(i,1); }
-    for(let i=game.fx.length-1;i>=0;i--){ const f=game.fx[i]; f.life-=dt; f.x+=f.vx*dt; f.y+=f.vy*dt; f.vy+=(f.g||0)*dt; if(f.life<=0) game.fx.splice(i,1); }
-    if(game.capT>0) game.capT -= dt;
-    for(const s2 of game.lvl.stars) s2.t += dt*3;
     updateCamera(dt); updateHUD();
-    if(now - net.sendAt > 33){
+    if(now - net.sendAt > 16){
       net.sendAt = now;
-      const me = input[0];
-      netSend({t:'in', l:me.left?1:0, r:me.right?1:0, j:me.jump?1:0, p:me.power?1:0, d:me.dance?1:0});
+      netSend(myStatePacket());
     }
   } else if(game.state==='play'){
     acc += dt;
